@@ -3,8 +3,18 @@ name = "pktscope"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "A Wireshark-style terminal packet analyzer"
+description = "A Wireshark-style terminal packet analyzer — lightweight, keyboard-driven, scriptable Wireshark alternative for the terminal"
 license = "MIT"
+repository = "https://github.com/richer-richard/pktscope"
+homepage = "https://github.com/richer-richard/pktscope"
+readme = "README.md"
+keywords = ["packet-analyzer", "network", "tui", "pcap", "wireshark"]
+categories = ["command-line-utilities", "network-programming"]
+exclude = [
+    "tests/fixtures/*",
+    ".claude/",
+    ".github/",
+]
 
 [dependencies]
 pcap = "2"
