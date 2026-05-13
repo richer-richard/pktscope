@@ -1,5 +1,8 @@
 # pktscope
 
+[![Crates.io](https://img.shields.io/crates/v/pktscope.svg)](https://crates.io/crates/pktscope)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A Wireshark-style packet analyzer that runs in the terminal. Lightweight, keyboard-driven, fast cold start, scriptable. Targets Linux, macOS, and Windows.
 
 ## Features
@@ -15,13 +18,16 @@ A Wireshark-style packet analyzer that runs in the terminal. Lightweight, keyboa
 - **PCAP file writing** to save captured packets
 - **Process attribution** on Linux (maps packets to process names via /proc)
 
-## Screenshots
-
-<!-- TODO: Add screenshots -->
-
 ## Installation
 
+### From crates.io (recommended)
+```bash
+cargo install pktscope
+```
+
 ### Prerequisites
+
+libpcap must be installed on your system before building:
 
 #### Linux
 ```bash
@@ -44,7 +50,7 @@ xcode-select --install
 
 ### Build from source
 ```bash
-git clone https://github.com/your-user/pktscope.git
+git clone https://github.com/richer-richard/pktscope.git
 cd pktscope
 cargo build --release
 ```
