@@ -6,9 +6,17 @@ use crate::decode::ColorHint;
 use super::App;
 
 pub fn render_packet_list(frame: &mut ratatui::Frame, area: Rect, app: &App) {
-    let header = Row::new(vec!["#", "Time", "Source", "Destination", "Proto", "Len", "Info"])
-        .style(Style::default().fg(Color::White).bold())
-        .bottom_margin(0);
+    let header = Row::new(vec![
+        "#",
+        "Time",
+        "Source",
+        "Destination",
+        "Proto",
+        "Len",
+        "Info",
+    ])
+    .style(Style::default().fg(Color::White).bold())
+    .bottom_margin(0);
 
     let visible_count = app.visible_count();
     let table_height = area.height.saturating_sub(3) as usize; // borders + header
@@ -77,13 +85,11 @@ pub fn render_packet_list(frame: &mut ratatui::Frame, area: Rect, app: &App) {
         Constraint::Min(20),
     ];
 
-    let table = Table::new(rows, widths)
-        .header(header)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(format!(" Packets ({}) ", visible_count)),
-        );
+    let table = Table::new(rows, widths).header(header).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!(" Packets ({}) ", visible_count)),
+    );
 
     frame.render_widget(table, area);
 }

@@ -29,7 +29,9 @@ pub fn check_capture_permissions() -> anyhow::Result<()> {
     {
         // On Windows, pcap will fail with a clear error if Npcap isn't installed
         // or if not running as Administrator. We provide additional guidance.
-        eprintln!("Note: Ensure Npcap is installed (https://npcap.com) and run from an Administrator prompt.");
+        eprintln!(
+            "Note: Ensure Npcap is installed (https://npcap.com) and run from an Administrator prompt."
+        );
     }
 
     Ok(())

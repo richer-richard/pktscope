@@ -31,36 +31,29 @@ where
 
 fn expr(input: &str) -> IResult<&str, FilterExpr> {
     let (input, first) = and_term(input)?;
-    let (input, rest) = many0(preceded(
-        ws(alt((tag("||"), tag("or")))),
-        and_term,
-    ))(input)?;
+    let (input, rest) = many0(preceded(ws(alt((tag("||"), tag("or")))), and_term))(input)?;
 
-    let result = rest
-        .into_iter()
-        .fold(first, |acc, term| FilterExpr::Or(Box::new(acc), Box::new(term)));
+    let result = rest.into_iter().fold(first, |acc, term| {
+        FilterExpr::Or(Box::new(acc), Box::new(term))
+    });
     Ok((input, result))
 }
 
 fn and_term(input: &str) -> IResult<&str, FilterExpr> {
     let (input, first) = unary(input)?;
-    let (input, rest) = many0(preceded(
-        ws(alt((tag("&&"), tag("and")))),
-        unary,
-    ))(input)?;
+    let (input, rest) = many0(preceded(ws(alt((tag("&&"), tag("and")))), unary))(input)?;
 
-    let result = rest
-        .into_iter()
-        .fold(first, |acc, term| FilterExpr::And(Box::new(acc), Box::new(term)));
+    let result = rest.into_iter().fold(first, |acc, term| {
+        FilterExpr::And(Box::new(acc), Box::new(term))
+    });
     Ok((input, result))
 }
 
 fn unary(input: &str) -> IResult<&str, FilterExpr> {
     alt((
-        map(
-            preceded(ws(alt((tag("not"), tag("!")))), unary),
-            |e| FilterExpr::Not(Box::new(e)),
-        ),
+        map(preceded(ws(alt((tag("not"), tag("!")))), unary), |e| {
+            FilterExpr::Not(Box::new(e))
+        }),
         atom,
     ))(input)
 }
@@ -290,7 +283,10 @@ mod tests {
         // Should be: tcp || (udp && arp)
         match expr {
             FilterExpr::Or(left, right) => {
-                assert!(matches!(*left, FilterExpr::ProtocolPresent(ProtocolAtom::Tcp)));
+                assert!(matches!(
+                    *left,
+                    FilterExpr::ProtocolPresent(ProtocolAtom::Tcp)
+                ));
                 assert!(matches!(*right, FilterExpr::And(_, _)));
             }
             _ => panic!("Expected OR at top level"),

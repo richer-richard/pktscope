@@ -13,13 +13,7 @@ pub struct FlowKey {
 }
 
 impl FlowKey {
-    pub fn new(
-        src_ip: IpAddr,
-        src_port: u16,
-        dst_ip: IpAddr,
-        dst_port: u16,
-        protocol: u8,
-    ) -> Self {
+    pub fn new(src_ip: IpAddr, src_port: u16, dst_ip: IpAddr, dst_port: u16, protocol: u8) -> Self {
         if (src_ip, src_port) <= (dst_ip, dst_port) {
             Self {
                 addr_low: src_ip,

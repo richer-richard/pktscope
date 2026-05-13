@@ -247,7 +247,11 @@ fn test_decode_tls_sni_pcap() {
     let dir = tempfile::tempdir().unwrap();
     let pcap_path = dir.path().join("tls.pcap");
 
-    let packets = vec![build_tls_packet([10, 0, 0, 1], [93, 184, 216, 34], "github.com")];
+    let packets = vec![build_tls_packet(
+        [10, 0, 0, 1],
+        [93, 184, 216, 34],
+        "github.com",
+    )];
     write_pcap(&pcap_path, &packets);
 
     let decoded = read_pcap_packets(&pcap_path);
@@ -368,9 +372,18 @@ fn test_retransmission_detection() {
 
     let decoded = read_pcap_packets_with_flow(&pcap_path);
     assert_eq!(decoded.len(), 3);
-    assert!(!decoded[0].retransmission, "First packet should not be retransmission");
-    assert!(!decoded[1].retransmission, "Second packet should not be retransmission");
-    assert!(decoded[2].retransmission, "Third packet should be marked as retransmission");
+    assert!(
+        !decoded[0].retransmission,
+        "First packet should not be retransmission"
+    );
+    assert!(
+        !decoded[1].retransmission,
+        "Second packet should not be retransmission"
+    );
+    assert!(
+        decoded[2].retransmission,
+        "Third packet should be marked as retransmission"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -378,8 +391,8 @@ fn test_retransmission_detection() {
 // ---------------------------------------------------------------------------
 
 fn read_pcap_packets(path: &std::path::Path) -> Vec<decode::DecodedPacket> {
-    use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
 
     let stop = Arc::new(AtomicBool::new(false));
     let (tx, rx) = crossbeam_channel::bounded(1000);
@@ -396,8 +409,8 @@ fn read_pcap_packets(path: &std::path::Path) -> Vec<decode::DecodedPacket> {
 }
 
 fn read_pcap_packets_with_flow(path: &std::path::Path) -> Vec<decode::DecodedPacket> {
-    use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
 
     let stop = Arc::new(AtomicBool::new(false));
     let (tx, rx) = crossbeam_channel::bounded(1000);

@@ -54,10 +54,9 @@ fn parse_proc_net(contents: &str, entries: &mut HashMap<(IpAddr, u16), u64>) {
         if fields.len() < 10 {
             continue;
         }
-        if let (Some((addr, port)), Some(inode)) = (
-            parse_addr_port(fields[1]),
-            fields[9].parse::<u64>().ok(),
-        ) {
+        if let (Some((addr, port)), Some(inode)) =
+            (parse_addr_port(fields[1]), fields[9].parse::<u64>().ok())
+        {
             if inode != 0 {
                 entries.insert((addr, port), inode);
             }

@@ -13,14 +13,17 @@ pub fn render_hex_view(frame: &mut ratatui::Frame, area: Rect, app: &App) {
     };
 
     let visible_height = area.height.saturating_sub(2) as usize;
-    let scroll = app.hex_scroll.min(lines.len().saturating_sub(visible_height));
-    let visible_lines: Vec<Line> = lines.into_iter().skip(scroll).take(visible_height).collect();
+    let scroll = app
+        .hex_scroll
+        .min(lines.len().saturating_sub(visible_height));
+    let visible_lines: Vec<Line> = lines
+        .into_iter()
+        .skip(scroll)
+        .take(visible_height)
+        .collect();
 
-    let paragraph = Paragraph::new(visible_lines).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Hex Dump "),
-    );
+    let paragraph = Paragraph::new(visible_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Hex Dump "));
     frame.render_widget(paragraph, area);
 }
 

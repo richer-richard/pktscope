@@ -3,7 +3,11 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "pktscope", version, about = "A Wireshark-style terminal packet analyzer")]
+#[command(
+    name = "pktscope",
+    version,
+    about = "A Wireshark-style terminal packet analyzer"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,

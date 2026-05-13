@@ -20,10 +20,7 @@ mod tests {
             timestamp: chrono::Utc::now(),
             wire_len: 100,
             data: vec![0xDE, 0xAD, 0xBE, 0xEF],
-            layers: vec![Layer::Payload {
-                offset: 0,
-                len: 4,
-            }],
+            layers: vec![Layer::Payload { offset: 0, len: 4 }],
             summary: PacketSummary {
                 source: "10.0.0.1".into(),
                 destination: "10.0.0.2".into(),

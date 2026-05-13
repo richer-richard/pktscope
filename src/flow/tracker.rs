@@ -92,9 +92,7 @@ impl FlowTracker {
     }
 }
 
-fn extract_flow_info(
-    layers: &[Layer],
-) -> Option<(IpAddr, IpAddr, u16, u16, u8, u32, usize, u8)> {
+fn extract_flow_info(layers: &[Layer]) -> Option<(IpAddr, IpAddr, u16, u16, u8, u32, usize, u8)> {
     let mut src_ip: Option<IpAddr> = None;
     let mut dst_ip: Option<IpAddr> = None;
     let mut protocol: Option<u8> = None;

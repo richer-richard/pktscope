@@ -240,35 +240,20 @@ mod tests {
     #[test]
     fn test_protocol_present() {
         let pkt = make_tcp_packet();
-        assert!(eval_filter(
-            &parse_filter("tcp").unwrap(),
-            &pkt
-        ));
-        assert!(!eval_filter(
-            &parse_filter("udp").unwrap(),
-            &pkt
-        ));
-        assert!(eval_filter(
-            &parse_filter("ip").unwrap(),
-            &pkt
-        ));
+        assert!(eval_filter(&parse_filter("tcp").unwrap(), &pkt));
+        assert!(!eval_filter(&parse_filter("udp").unwrap(), &pkt));
+        assert!(eval_filter(&parse_filter("ip").unwrap(), &pkt));
     }
 
     #[test]
     fn test_port_comparison() {
         let pkt = make_tcp_packet();
-        assert!(eval_filter(
-            &parse_filter("tcp.port == 443").unwrap(),
-            &pkt
-        ));
+        assert!(eval_filter(&parse_filter("tcp.port == 443").unwrap(), &pkt));
         assert!(eval_filter(
             &parse_filter("tcp.port == 50000").unwrap(),
             &pkt
         ));
-        assert!(!eval_filter(
-            &parse_filter("tcp.port == 80").unwrap(),
-            &pkt
-        ));
+        assert!(!eval_filter(&parse_filter("tcp.port == 80").unwrap(), &pkt));
     }
 
     #[test]
@@ -304,14 +289,8 @@ mod tests {
             &parse_filter("tcp and ip.src == 10.0.0.1").unwrap(),
             &pkt
         ));
-        assert!(!eval_filter(
-            &parse_filter("udp or arp").unwrap(),
-            &pkt
-        ));
-        assert!(eval_filter(
-            &parse_filter("not udp").unwrap(),
-            &pkt
-        ));
+        assert!(!eval_filter(&parse_filter("udp or arp").unwrap(), &pkt));
+        assert!(eval_filter(&parse_filter("not udp").unwrap(), &pkt));
     }
 
     #[test]

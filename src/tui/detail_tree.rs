@@ -31,8 +31,14 @@ pub fn render_detail_tree(frame: &mut ratatui::Frame, area: Rect, app: &App) {
     };
 
     let visible_height = area.height.saturating_sub(2) as usize;
-    let scroll = app.detail_scroll.min(lines.len().saturating_sub(visible_height));
-    let visible_lines: Vec<Line> = lines.into_iter().skip(scroll).take(visible_height).collect();
+    let scroll = app
+        .detail_scroll
+        .min(lines.len().saturating_sub(visible_height));
+    let visible_lines: Vec<Line> = lines
+        .into_iter()
+        .skip(scroll)
+        .take(visible_height)
+        .collect();
 
     let paragraph = Paragraph::new(visible_lines).block(
         Block::default()
@@ -50,10 +56,7 @@ fn detail_lines(layer: &Layer) -> Vec<Line<'static>> {
     match layer {
         Layer::Ethernet(eth) => {
             lines.push(Line::from(Span::styled(
-                format!(
-                    "▸ Ethernet II, Src: {}, Dst: {}",
-                    eth.src_mac, eth.dst_mac
-                ),
+                format!("▸ Ethernet II, Src: {}, Dst: {}", eth.src_mac, eth.dst_mac),
                 header_style,
             )));
             lines.push(Line::from(Span::styled(
@@ -121,7 +124,11 @@ fn detail_lines(layer: &Layer) -> Vec<Line<'static>> {
                 field_style,
             )));
             lines.push(Line::from(Span::styled(
-                format!("    Protocol: {} ({})", protocol_name(ip.protocol), ip.protocol),
+                format!(
+                    "    Protocol: {} ({})",
+                    protocol_name(ip.protocol),
+                    ip.protocol
+                ),
                 field_style,
             )));
             lines.push(Line::from(Span::styled(
@@ -142,7 +149,11 @@ fn detail_lines(layer: &Layer) -> Vec<Line<'static>> {
                 header_style,
             )));
             lines.push(Line::from(Span::styled(
-                format!("    Next Header: {} ({})", protocol_name(ip.next_header), ip.next_header),
+                format!(
+                    "    Next Header: {} ({})",
+                    protocol_name(ip.next_header),
+                    ip.next_header
+                ),
                 field_style,
             )));
             lines.push(Line::from(Span::styled(
@@ -217,18 +228,18 @@ fn detail_lines(layer: &Layer) -> Vec<Line<'static>> {
             )));
         }
         Layer::Dns(dns) => {
-            let dir = if dns.is_response {
-                "Response"
-            } else {
-                "Query"
-            };
+            let dir = if dns.is_response { "Response" } else { "Query" };
             lines.push(Line::from(Span::styled(
                 format!("▸ DNS {} (0x{:04x})", dir, dns.transaction_id),
                 header_style,
             )));
             for q in &dns.questions {
                 lines.push(Line::from(Span::styled(
-                    format!("    Question: {} (type={})", q.qname, dns_type_name(q.qtype)),
+                    format!(
+                        "    Question: {} (type={})",
+                        q.qname,
+                        dns_type_name(q.qtype)
+                    ),
                     field_style,
                 )));
             }

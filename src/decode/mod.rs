@@ -341,8 +341,7 @@ fn decode_layers(data: &[u8], linktype: Linktype) -> Vec<Layer> {
                         if let Some(dns) = dns_question::try_decode_dns(data, app_offset) {
                             layers.push(Layer::Dns(dns));
                         }
-                    } else if let Some(tls) =
-                        tls_sni::try_decode_tls_client_hello(data, app_offset)
+                    } else if let Some(tls) = tls_sni::try_decode_tls_client_hello(data, app_offset)
                     {
                         layers.push(Layer::TlsClientHello(tls));
                     }

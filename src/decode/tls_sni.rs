@@ -166,7 +166,13 @@ mod tests {
         let cipher_suites_len: usize = 2; // one cipher suite
         let compression_len: usize = 1; // one compression method
 
-        let ch_body_len = 2 + 32 + 1 + session_id_len + 2 + cipher_suites_len + 1
+        let ch_body_len = 2
+            + 32
+            + 1
+            + session_id_len
+            + 2
+            + cipher_suites_len
+            + 1
             + compression_len
             + 2
             + extensions_len;

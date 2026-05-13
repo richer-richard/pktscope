@@ -10,10 +10,10 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::Receiver;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::{execute, cursor};
+use crossterm::{cursor, execute};
+use ratatui::Terminal;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Paragraph};
-use ratatui::Terminal;
 
 use crate::decode::DecodedPacket;
 use crate::filter::ast::FilterExpr;
@@ -147,11 +147,7 @@ pub fn run_tui(
 
     // Restore terminal
     terminal::disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        cursor::Show
-    )?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, cursor::Show)?;
 
     if let Some(ref mut writer) = app.pcap_writer {
         writer.flush()?;
@@ -373,9 +369,9 @@ fn render_frame(frame: &mut ratatui::Frame, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),  // filter bar
-            Constraint::Min(10),   // main area
+            Constraint::Min(10),    // main area
             Constraint::Length(10), // hex view
-            Constraint::Length(1), // status bar
+            Constraint::Length(1),  // status bar
         ])
         .split(area);
 

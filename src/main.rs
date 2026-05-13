@@ -10,8 +10,8 @@ mod process;
 mod storage;
 mod tui;
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::Result;
 use clap::Parser;
@@ -76,12 +76,8 @@ fn main() -> Result<()> {
             let (raw_tx, raw_rx) = bounded(CHANNEL_CAPACITY);
             let (decoded_tx, decoded_rx) = bounded(CHANNEL_CAPACITY);
 
-            let capture_handle = capture::file::start_file_capture(
-                &file,
-                filter.as_deref(),
-                raw_tx,
-                stop.clone(),
-            )?;
+            let capture_handle =
+                capture::file::start_file_capture(&file, filter.as_deref(), raw_tx, stop.clone())?;
 
             let decode_stop = stop.clone();
             let decode_handle = std::thread::Builder::new()
