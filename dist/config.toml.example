@@ -1,0 +1,19 @@
+# Example pktscope configuration.
+# Copy to ~/.config/pktscope/config.toml (macOS: ~/Library/Application Support
+# is the data dir; config lives under the platform config dir). CLI flags
+# always override these values.
+
+[capture]
+# Interface used by `pktscope capture` when -i is omitted.
+default_interface = "en0"
+
+[display]
+# Reserved for future theming; currently informational.
+color_scheme = "dark"
+
+# Saved named filters — recall in the filter bar by typing `:name`.
+[filters]
+https = "tcp.port == 443"
+dns   = "udp.port == 53"
+web   = "tcp.port == 443 or tcp.port == 80"
+noarp = "not arp"

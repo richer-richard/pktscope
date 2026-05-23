@@ -112,7 +112,11 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Monitor { action } => monitor_cmd(action),
-        Command::Inspect { state_dir, socket } => inspect_cmd(state_dir, socket),
+        Command::Inspect {
+            state_dir,
+            socket,
+            json,
+        } => inspect_cmd(state_dir, socket, json),
         Command::Diff { file_a, file_b } => diff_cmd(file_a, file_b),
     }
 }
@@ -148,13 +152,42 @@ fn diff_cmd(file_a: PathBuf, file_b: PathBuf) -> Result<()> {
 }
 
 #[cfg(unix)]
-fn inspect_cmd(state_dir: Option<PathBuf>, socket: Option<PathBuf>) -> Result<()> {
+fn inspect_cmd(state_dir: Option<PathBuf>, socket: Option<PathBuf>, json: bool) -> Result<()> {
     let sock = socket.unwrap_or_else(|| pktscope_core::monitor::paths::resolve(state_dir).socket);
-    inspect::run_inspector(&sock)
+    if json {
+        inspect_json(&sock)
+    } else {
+        inspect::run_inspector(&sock)
+    }
+}
+
+#[cfg(unix)]
+fn inspect_json(sock: &std::path::Path) -> Result<()> {
+    use pktscope_core::ipc::{IpcClient, Request, Response};
+    let mut client = IpcClient::connect(sock)?;
+    let status = match client.request(&Request::Status)? {
+        Response::Status(s) => Some(s),
+        _ => None,
+    };
+    let connections = match client.request(&Request::LiveConnections)? {
+        Response::Connections(v) => v,
+        _ => vec![],
+    };
+    let alerts = match client.request(&Request::RecentAlerts { limit: 200 })? {
+        Response::Alerts(v) => v,
+        _ => vec![],
+    };
+    let out = serde_json::json!({
+        "status": status,
+        "connections": connections,
+        "alerts": alerts,
+    });
+    println!("{}", serde_json::to_string_pretty(&out)?);
+    Ok(())
 }
 
 #[cfg(not(unix))]
-fn inspect_cmd(_state_dir: Option<PathBuf>, _socket: Option<PathBuf>) -> Result<()> {
+fn inspect_cmd(_state_dir: Option<PathBuf>, _socket: Option<PathBuf>, _json: bool) -> Result<()> {
     anyhow::bail!("the inspector is only supported on Unix")
 }
 

@@ -90,6 +90,10 @@ pub enum Command {
         /// Override the daemon socket path directly
         #[arg(long)]
         socket: Option<PathBuf>,
+
+        /// One-shot: print status + live connections + recent alerts as JSON and exit
+        #[arg(long)]
+        json: bool,
     },
 
     /// Diff two pcap files by packet content
