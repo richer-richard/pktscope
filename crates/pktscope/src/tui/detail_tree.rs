@@ -320,6 +320,53 @@ fn detail_lines(layer: &Layer) -> Vec<Line<'static>> {
                 lines.push(Line::from(Span::styled(s, field_style)));
             }
         }
+        Layer::Http(h) => {
+            let title = if h.is_request {
+                format!(
+                    "▸ HTTP {} {}",
+                    h.method.as_deref().unwrap_or("?"),
+                    h.uri.as_deref().unwrap_or("")
+                )
+            } else {
+                format!(
+                    "▸ HTTP {} response",
+                    h.status_code.map(|c| c.to_string()).unwrap_or_default()
+                )
+            };
+            lines.push(Line::from(Span::styled(title, header_style)));
+            if let Some(host) = &h.host {
+                lines.push(Line::from(Span::styled(
+                    format!("    Host: {host}"),
+                    field_style,
+                )));
+            }
+        }
+        Layer::Http2(h2) => {
+            lines.push(Line::from(Span::styled(
+                format!("▸ HTTP/2 ({} frames)", h2.frames.len()),
+                header_style,
+            )));
+            for fr in &h2.frames {
+                for (k, v) in &fr.headers {
+                    lines.push(Line::from(Span::styled(
+                        format!("    {k}: {v}"),
+                        field_style,
+                    )));
+                }
+            }
+        }
+        Layer::Quic(q) => {
+            lines.push(Line::from(Span::styled(
+                format!("▸ QUIC {:?}", q.packet_type),
+                header_style,
+            )));
+            if let Some(v) = q.version {
+                lines.push(Line::from(Span::styled(
+                    format!("    Version: 0x{v:08x}"),
+                    field_style,
+                )));
+            }
+        }
         Layer::Payload { offset, len } => {
             lines.push(Line::from(Span::styled(
                 format!("▸ Data ({} bytes at offset {})", len, offset),

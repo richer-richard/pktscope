@@ -81,6 +81,11 @@ impl NameResolver {
                         changed |= self.insert(ip, sni.clone(), NameSource::TlsSni, ts);
                     }
                 }
+                Layer::Http(h) => {
+                    if let (Some(host), Some(ip)) = (&h.host, dst_ip) {
+                        changed |= self.insert(ip, host.clone(), NameSource::HttpHost, ts);
+                    }
+                }
                 _ => {}
             }
         }

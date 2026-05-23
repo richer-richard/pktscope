@@ -1,11 +1,14 @@
 pub mod arp;
 pub mod dns;
 pub mod ethernet;
+pub mod http;
+pub mod http2;
 pub mod icmp;
 pub mod icmpv6;
 pub mod ipv4;
 pub mod ipv6;
 pub mod ja;
+pub mod quic;
 pub mod tcp;
 pub mod tls;
 pub mod udp;
@@ -90,6 +93,9 @@ pub enum Layer {
     Dns(DnsInfo),
     TlsClientHello(TlsClientHelloInfo),
     TlsHandshake(TlsHandshakeInfo),
+    Http(HttpInfo),
+    Http2(Http2FrameInfo),
+    Quic(QuicInfo),
     Payload { offset: usize, len: usize },
 }
 
@@ -342,6 +348,54 @@ pub enum TlsHandshakeMessage {
     },
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HttpInfo {
+    pub is_request: bool,
+    pub method: Option<String>,
+    pub uri: Option<String>,
+    pub version: Option<String>,
+    pub status_code: Option<u16>,
+    pub headers: Vec<(String, String)>,
+    pub host: Option<String>,
+    pub content_length: Option<usize>,
+    pub chunked: bool,
+    pub header_range: (usize, usize),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Http2FrameInfo {
+    pub frames: Vec<Http2Frame>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Http2Frame {
+    pub stream_id: u32,
+    pub frame_type: u8,
+    pub flags: u8,
+    pub length: u32,
+    pub headers: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuicInfo {
+    pub long_header: bool,
+    pub version: Option<u32>,
+    pub packet_type: QuicPacketType,
+    pub dcid: Vec<u8>,
+    pub scid: Vec<u8>,
+    pub sni: Option<String>,
+    pub header_range: (usize, usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum QuicPacketType {
+    Initial,
+    ZeroRtt,
+    Handshake,
+    Retry,
+    VersionNegotiation,
+}
+
 // ---------------------------------------------------------------------------
 // Decoder chain types
 // ---------------------------------------------------------------------------
@@ -422,10 +476,18 @@ fn decode_layers(data: &[u8], linktype: Linktype) -> Vec<Layer> {
                         if let Some(dns) = dns::try_decode_dns(data, app_offset) {
                             layers.push(Layer::Dns(dns));
                         }
+                    } else if !transport.is_tcp {
+                        if let Some(q) = quic::try_decode_quic(data, app_offset) {
+                            layers.push(Layer::Quic(q));
+                        }
                     } else if let Some(tls) = tls::try_decode_tls_client_hello(data, app_offset) {
                         layers.push(Layer::TlsClientHello(tls));
                     } else if let Some(hs) = tls::try_decode_tls_handshake(data, app_offset) {
                         layers.push(Layer::TlsHandshake(hs));
+                    } else if let Some(h2) = http2::try_decode_http2(&data[app_offset..]) {
+                        layers.push(Layer::Http2(h2));
+                    } else if let Some(h) = http::try_decode_http(&data[app_offset..]) {
+                        layers.push(Layer::Http(h));
                     }
                     if app_offset < data.len() {
                         layers.push(Layer::Payload {
@@ -575,6 +637,33 @@ fn compute_summary(layers: &[Layer], wire_len: u32) -> PacketSummary {
                         format!("TLS Handshake (type {msg_type})")
                     }
                     None => "TLS Handshake".into(),
+                };
+            }
+            Layer::Http(h) => {
+                protocol = "HTTP".into();
+                info = if h.is_request {
+                    format!(
+                        "{} {}{}",
+                        h.method.as_deref().unwrap_or("?"),
+                        h.host.as_deref().unwrap_or(""),
+                        h.uri.as_deref().unwrap_or("")
+                    )
+                } else {
+                    format!(
+                        "HTTP {} response",
+                        h.status_code.map(|c| c.to_string()).unwrap_or_default()
+                    )
+                };
+            }
+            Layer::Http2(h2) => {
+                protocol = "HTTP/2".into();
+                info = format!("HTTP/2 ({} frame(s))", h2.frames.len());
+            }
+            Layer::Quic(q) => {
+                protocol = "QUIC".into();
+                info = match q.version {
+                    Some(v) => format!("QUIC {:?} v0x{v:08x}", q.packet_type),
+                    None => format!("QUIC {:?}", q.packet_type),
                 };
             }
             Layer::Payload { .. } => {}

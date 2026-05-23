@@ -1,6 +1,9 @@
 pub mod dns_tracker;
+pub mod reassembly;
 pub mod stats;
 pub mod tracker;
+
+pub use reassembly::{ReassemblyBuffer, StreamData};
 
 use std::collections::BTreeMap;
 use std::net::IpAddr;
