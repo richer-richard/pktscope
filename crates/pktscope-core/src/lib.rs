@@ -7,6 +7,8 @@ pub mod filter;
 pub mod flow;
 pub mod identity;
 #[cfg(unix)]
+pub mod inspector;
+#[cfg(unix)]
 pub mod ipc;
 #[cfg(unix)]
 pub mod monitor;

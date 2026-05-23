@@ -68,6 +68,17 @@ pub enum Command {
         #[command(subcommand)]
         action: MonitorAction,
     },
+
+    /// Attach the inspector TUI to a running egress monitor daemon
+    Inspect {
+        /// Runtime state directory (used to locate the daemon socket)
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+
+        /// Override the daemon socket path directly
+        #[arg(long)]
+        socket: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug)]

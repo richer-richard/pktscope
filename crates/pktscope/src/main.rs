@@ -1,6 +1,10 @@
 mod cli;
+#[cfg(unix)]
+mod inspect;
 mod permissions;
 mod tui;
+
+use std::path::PathBuf;
 
 use pktscope_core::{capture, decode, flow, output, process};
 
@@ -90,7 +94,19 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Monitor { action } => monitor_cmd(action),
+        Command::Inspect { state_dir, socket } => inspect_cmd(state_dir, socket),
     }
+}
+
+#[cfg(unix)]
+fn inspect_cmd(state_dir: Option<PathBuf>, socket: Option<PathBuf>) -> Result<()> {
+    let sock = socket.unwrap_or_else(|| pktscope_core::monitor::paths::resolve(state_dir).socket);
+    inspect::run_inspector(&sock)
+}
+
+#[cfg(not(unix))]
+fn inspect_cmd(_state_dir: Option<PathBuf>, _socket: Option<PathBuf>) -> Result<()> {
+    anyhow::bail!("the inspector is only supported on Unix")
 }
 
 #[cfg(unix)]

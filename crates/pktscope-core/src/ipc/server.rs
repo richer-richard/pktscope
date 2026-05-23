@@ -185,6 +185,10 @@ fn handle_query(ctx: &ServerCtx, req: Request) -> Response {
             Ok(v) => Response::Alerts(v),
             Err(e) => err(e),
         },
+        Request::RecentConnections { limit } => match store.recent_connections(limit) {
+            Ok(v) => Response::History(v),
+            Err(e) => err(e),
+        },
         Request::Subscribe | Request::Stop => Response::Error {
             message: "handled out of band".into(),
         },

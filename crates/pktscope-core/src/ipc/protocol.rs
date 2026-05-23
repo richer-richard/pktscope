@@ -60,6 +60,10 @@ pub enum Request {
     RecentAlerts {
         limit: usize,
     },
+    /// Recent persisted connections (time-travel history).
+    RecentConnections {
+        limit: usize,
+    },
     /// Upgrade this connection to a live event stream.
     Subscribe,
     /// Ask the daemon to shut down.
