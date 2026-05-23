@@ -1,7 +1,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Row, Table};
 
-use crate::decode::ColorHint;
+use pktscope_core::decode::ColorHint;
 
 use super::App;
 

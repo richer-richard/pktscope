@@ -43,6 +43,12 @@ pub struct FlowState {
     pub rst_seen: bool,
 }
 
+impl Default for FlowState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FlowState {
     pub fn new() -> Self {
         Self {

@@ -31,19 +31,22 @@ pub fn eval_filter(expr: &FilterExpr, pkt: &DecodedPacket) -> bool {
 }
 
 fn has_protocol(proto: ProtocolAtom, layers: &[Layer]) -> bool {
-    layers.iter().any(|l| match (proto, l) {
-        (ProtocolAtom::Ethernet, Layer::Ethernet(_)) => true,
-        (ProtocolAtom::Arp, Layer::Arp(_)) => true,
-        (ProtocolAtom::Ip, Layer::Ipv4(_)) | (ProtocolAtom::Ip, Layer::Ipv6(_)) => true,
-        (ProtocolAtom::Ipv4, Layer::Ipv4(_)) => true,
-        (ProtocolAtom::Ipv6, Layer::Ipv6(_)) => true,
-        (ProtocolAtom::Tcp, Layer::Tcp(_)) => true,
-        (ProtocolAtom::Udp, Layer::Udp(_)) => true,
-        (ProtocolAtom::Icmp, Layer::Icmp(_)) => true,
-        (ProtocolAtom::Icmpv6, Layer::Icmpv6(_)) => true,
-        (ProtocolAtom::Dns, Layer::Dns(_)) => true,
-        (ProtocolAtom::Tls, Layer::TlsClientHello(_)) => true,
-        _ => false,
+    layers.iter().any(|l| {
+        matches!(
+            (proto, l),
+            (ProtocolAtom::Ethernet, Layer::Ethernet(_))
+                | (ProtocolAtom::Arp, Layer::Arp(_))
+                | (ProtocolAtom::Ip, Layer::Ipv4(_))
+                | (ProtocolAtom::Ip, Layer::Ipv6(_))
+                | (ProtocolAtom::Ipv4, Layer::Ipv4(_))
+                | (ProtocolAtom::Ipv6, Layer::Ipv6(_))
+                | (ProtocolAtom::Tcp, Layer::Tcp(_))
+                | (ProtocolAtom::Udp, Layer::Udp(_))
+                | (ProtocolAtom::Icmp, Layer::Icmp(_))
+                | (ProtocolAtom::Icmpv6, Layer::Icmpv6(_))
+                | (ProtocolAtom::Dns, Layer::Dns(_))
+                | (ProtocolAtom::Tls, Layer::TlsClientHello(_))
+        )
     })
 }
 
@@ -71,21 +74,15 @@ fn extract_field(field: &FieldPath, layers: &[Layer]) -> Option<FilterValue> {
                 "udp.dstport" => return Some(FilterValue::Integer(udp.dst_port as i64)),
                 _ => {}
             },
-            Layer::Dns(dns) => match path.as_str() {
-                "dns.qname" => {
-                    return dns
-                        .questions
-                        .first()
-                        .map(|q| FilterValue::Str(q.qname.clone()));
-                }
-                _ => {}
-            },
-            Layer::TlsClientHello(tls) => match path.as_str() {
-                "tls.sni" => {
-                    return tls.sni.as_ref().map(|s| FilterValue::Str(s.clone()));
-                }
-                _ => {}
-            },
+            Layer::Dns(dns) if path.as_str() == "dns.qname" => {
+                return dns
+                    .questions
+                    .first()
+                    .map(|q| FilterValue::Str(q.qname.clone()));
+            }
+            Layer::TlsClientHello(tls) if path.as_str() == "tls.sni" => {
+                return tls.sni.as_ref().map(|s| FilterValue::Str(s.clone()));
+            }
             Layer::Icmp(icmp) => match path.as_str() {
                 "icmp.type" => return Some(FilterValue::Integer(icmp.icmp_type as i64)),
                 "icmp.code" => return Some(FilterValue::Integer(icmp.code as i64)),

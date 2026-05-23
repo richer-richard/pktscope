@@ -701,10 +701,22 @@ dependencies = [
  "crossbeam-channel",
  "crossterm",
  "libc",
+ "pcap",
+ "pktscope-core",
+ "ratatui",
+]
+
+[[package]]
+name = "pktscope-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "crossbeam-channel",
+ "libc",
  "lru",
  "nom",
  "pcap",
- "ratatui",
  "serde",
  "serde_json",
  "tempfile",

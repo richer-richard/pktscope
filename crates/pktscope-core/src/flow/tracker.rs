@@ -12,6 +12,12 @@ pub struct FlowTracker {
     flows: LruCache<FlowKey, FlowState>,
 }
 
+impl Default for FlowTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FlowTracker {
     pub fn new() -> Self {
         Self {
@@ -30,9 +36,7 @@ impl FlowTracker {
         let key = FlowKey::new(src_ip, src_port, dst_ip, dst_port, protocol);
         let is_low_side = (src_ip, src_port) <= (dst_ip, dst_port);
 
-        let state = self
-            .flows
-            .get_or_insert_mut(key.clone(), || FlowState::new());
+        let state = self.flows.get_or_insert_mut(key.clone(), FlowState::new);
 
         let mut is_retransmission = false;
 
@@ -47,14 +51,10 @@ impl FlowTracker {
             };
 
             match *max_seq {
-                Some(prev_max) => {
-                    if seq_end <= prev_max {
-                        is_retransmission = true;
-                    } else {
-                        *max_seq = Some(seq_end);
-                    }
+                Some(prev_max) if seq_end <= prev_max => {
+                    is_retransmission = true;
                 }
-                None => {
+                _ => {
                     *max_seq = Some(seq_end);
                 }
             }
@@ -90,9 +90,16 @@ impl FlowTracker {
     pub fn len(&self) -> usize {
         self.flows.len()
     }
+
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.flows.is_empty()
+    }
 }
 
-fn extract_flow_info(layers: &[Layer]) -> Option<(IpAddr, IpAddr, u16, u16, u8, u32, usize, u8)> {
+type FlowInfo = (IpAddr, IpAddr, u16, u16, u8, u32, usize, u8);
+
+fn extract_flow_info(layers: &[Layer]) -> Option<FlowInfo> {
     let mut src_ip: Option<IpAddr> = None;
     let mut dst_ip: Option<IpAddr> = None;
     let mut protocol: Option<u8> = None;
@@ -147,6 +154,7 @@ mod tests {
     use chrono::Utc;
     use std::net::Ipv4Addr;
 
+    #[allow(clippy::too_many_arguments)]
     fn make_tcp_packet(
         src_ip: Ipv4Addr,
         dst_ip: Ipv4Addr,

@@ -15,12 +15,12 @@ use ratatui::Terminal;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Paragraph};
 
-use crate::decode::DecodedPacket;
-use crate::filter::ast::FilterExpr;
-use crate::filter::eval::eval_filter;
-use crate::filter::parser::parse_filter;
-use crate::output::pcap_writer::PcapWriter;
-use crate::storage::ring::PacketRing;
+use pktscope_core::decode::DecodedPacket;
+use pktscope_core::filter::ast::FilterExpr;
+use pktscope_core::filter::eval::eval_filter;
+use pktscope_core::filter::parser::parse_filter;
+use pktscope_core::output::pcap_writer::PcapWriter;
+use pktscope_core::storage::ring::PacketRing;
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(33);
 
@@ -121,7 +121,7 @@ pub fn run_tui(
         let writer = std::io::BufWriter::new(file);
         app.pcap_writer = Some(PcapWriter::new(
             writer,
-            crate::capture::Linktype::Ethernet,
+            pktscope_core::capture::Linktype::Ethernet,
             65535,
         )?);
     }
@@ -173,12 +173,10 @@ fn handle_key_event(app: &mut App, key: event::KeyEvent) -> bool {
                     app.hex_scroll = 0;
                 }
             }
-            KeyCode::Char('k') | KeyCode::Up => {
-                if app.selected > 0 {
-                    app.selected -= 1;
-                    app.detail_scroll = 0;
-                    app.hex_scroll = 0;
-                }
+            KeyCode::Char('k') | KeyCode::Up if app.selected > 0 => {
+                app.selected -= 1;
+                app.detail_scroll = 0;
+                app.hex_scroll = 0;
             }
             KeyCode::Char('G') | KeyCode::End => {
                 let count = app.visible_count();
@@ -262,21 +260,15 @@ fn handle_key_event(app: &mut App, key: event::KeyEvent) -> bool {
             KeyCode::Esc => {
                 app.mode = InputMode::Normal;
             }
-            KeyCode::Backspace => {
-                if app.filter_cursor > 0 {
-                    app.filter_cursor -= 1;
-                    app.filter_input.remove(app.filter_cursor);
-                }
+            KeyCode::Backspace if app.filter_cursor > 0 => {
+                app.filter_cursor -= 1;
+                app.filter_input.remove(app.filter_cursor);
             }
-            KeyCode::Left => {
-                if app.filter_cursor > 0 {
-                    app.filter_cursor -= 1;
-                }
+            KeyCode::Left if app.filter_cursor > 0 => {
+                app.filter_cursor -= 1;
             }
-            KeyCode::Right => {
-                if app.filter_cursor < app.filter_input.len() {
-                    app.filter_cursor += 1;
-                }
+            KeyCode::Right if app.filter_cursor < app.filter_input.len() => {
+                app.filter_cursor += 1;
             }
             KeyCode::Char(c) => {
                 app.filter_input.insert(app.filter_cursor, c);

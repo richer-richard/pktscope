@@ -1,7 +1,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use crate::decode::Layer;
+use pktscope_core::decode::Layer;
 
 use super::App;
 

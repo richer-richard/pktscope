@@ -1,4 +1,4 @@
-use crate::error::PktScopeError;
+use pktscope_core::error::PktScopeError;
 
 pub fn check_capture_permissions() -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]

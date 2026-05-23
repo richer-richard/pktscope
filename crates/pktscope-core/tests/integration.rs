@@ -1,8 +1,8 @@
 use std::io::Write;
 
-use pktscope::decode::{self, Layer};
-use pktscope::filter::eval::eval_filter;
-use pktscope::filter::parser::parse_filter;
+use pktscope_core::decode::{self, Layer};
+use pktscope_core::filter::eval::eval_filter;
+use pktscope_core::filter::parser::parse_filter;
 
 // ---------------------------------------------------------------------------
 // Helper: build pcap files from raw packet bytes
@@ -127,7 +127,7 @@ fn build_tls_client_hello(sni: &str) -> Vec<u8> {
     let sni_ext_data_len = 2 + 1 + 2 + sni_bytes.len();
     let sni_ext_len = 4 + sni_ext_data_len;
     let extensions_len = sni_ext_len;
-    let ch_body_len = 2 + 32 + 1 + 0 + 2 + 2 + 1 + 1 + 2 + extensions_len;
+    let ch_body_len = 2 + 32 + 1 + 2 + 2 + 1 + 1 + 2 + extensions_len;
 
     let mut tls = Vec::new();
     tls.push(0x16); // handshake
@@ -397,7 +397,7 @@ fn read_pcap_packets(path: &std::path::Path) -> Vec<decode::DecodedPacket> {
     let stop = Arc::new(AtomicBool::new(false));
     let (tx, rx) = crossbeam_channel::bounded(1000);
     let capture_handle =
-        pktscope::capture::file::start_file_capture(path, None, tx, stop.clone()).unwrap();
+        pktscope_core::capture::file::start_file_capture(path, None, tx, stop.clone()).unwrap();
 
     let _ = capture_handle.join();
 
@@ -415,11 +415,11 @@ fn read_pcap_packets_with_flow(path: &std::path::Path) -> Vec<decode::DecodedPac
     let stop = Arc::new(AtomicBool::new(false));
     let (tx, rx) = crossbeam_channel::bounded(1000);
     let capture_handle =
-        pktscope::capture::file::start_file_capture(path, None, tx, stop.clone()).unwrap();
+        pktscope_core::capture::file::start_file_capture(path, None, tx, stop.clone()).unwrap();
 
     let _ = capture_handle.join();
 
-    let mut tracker = pktscope::flow::tracker::FlowTracker::new();
+    let mut tracker = pktscope_core::flow::tracker::FlowTracker::new();
     let mut packets = Vec::new();
     while let Ok(raw) = rx.try_recv() {
         let mut decoded = decode::decode_packet(&raw);

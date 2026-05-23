@@ -1,14 +1,8 @@
-mod capture;
 mod cli;
-mod decode;
-mod error;
-mod filter;
-mod flow;
-mod output;
 mod permissions;
-mod process;
-mod storage;
 mod tui;
+
+use pktscope_core::{capture, decode, flow, output, process};
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

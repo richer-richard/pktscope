@@ -1,0 +1,25 @@
+[package]
+name = "pktscope-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core engine for pktscope: live/offline capture, protocol decoders, flow tracking, filters, and egress monitoring"
+
+[dependencies]
+pcap.workspace = true
+crossbeam-channel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+lru.workspace = true
+chrono.workspace = true
+nom.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

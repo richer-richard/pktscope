@@ -1,22 +1,16 @@
-[package]
-name = "pktscope"
+[workspace]
+resolver = "2"
+members = ["crates/pktscope-core", "crates/pktscope"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "A Wireshark-style terminal packet analyzer — lightweight, keyboard-driven, scriptable Wireshark alternative for the terminal"
 license = "MIT"
 repository = "https://github.com/richer-richard/pktscope"
 homepage = "https://github.com/richer-richard/pktscope"
-readme = "README.md"
-keywords = ["packet-analyzer", "network", "tui", "pcap", "wireshark"]
-categories = ["command-line-utilities", "network-programming"]
-exclude = [
-    "tests/fixtures/*",
-    ".claude/",
-    ".github/",
-]
 
-[dependencies]
+[workspace.dependencies]
 pcap = "2"
 ratatui = "0.29"
 crossterm = "0.28"
@@ -29,9 +23,5 @@ anyhow = "1"
 thiserror = "2"
 lru = "0.12"
 chrono = { version = "0.4", features = ["serde"] }
-
-[target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[dev-dependencies]
 tempfile = "3"

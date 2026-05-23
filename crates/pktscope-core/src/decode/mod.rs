@@ -318,9 +318,9 @@ fn decode_layers(data: &[u8], linktype: Linktype) -> Vec<Layer> {
     let initial = match linktype {
         Linktype::Ethernet => Some(NextDecode::Ethernet),
         Linktype::RawIp => {
-            if data.first().map_or(false, |b| b >> 4 == 4) {
+            if data.first().is_some_and(|b| b >> 4 == 4) {
                 Some(NextDecode::Ipv4)
-            } else if data.first().map_or(false, |b| b >> 4 == 6) {
+            } else if data.first().is_some_and(|b| b >> 4 == 6) {
                 Some(NextDecode::Ipv6)
             } else {
                 None
