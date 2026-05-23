@@ -2,7 +2,9 @@ pub mod detail_tree;
 pub mod filter_bar;
 pub mod hex_view;
 pub mod packet_list;
+pub mod views;
 
+use std::collections::{BTreeMap, VecDeque};
 use std::io;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -30,6 +32,18 @@ pub enum InputMode {
     FilterInput,
 }
 
+/// Full-area statistics/stream overlays toggled from Normal mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverlayKind {
+    TopTalkers,
+    ProtocolDist,
+    Flows,
+    Timeline,
+    Stream,
+}
+
+const THROUGHPUT_WINDOW: usize = 60;
+
 #[derive(Debug, Clone)]
 pub struct StatusMessage {
     pub text: String,
@@ -51,6 +65,17 @@ pub struct App {
     pub filter_input: String,
     pub filter_cursor: usize,
     pub pcap_writer: Option<PcapWriter<std::io::BufWriter<std::fs::File>>>,
+
+    // Phase-4 stats / follow-stream overlays (all computed from the packet ring).
+    pub overlay: Option<OverlayKind>,
+    pub overlay_scroll: usize,
+    pub stream: Option<(String, pktscope_core::flow::StreamData)>,
+    pub throughput_pps: VecDeque<u64>,
+    pub throughput_bps: VecDeque<u64>,
+    pub last_tick: Instant,
+    pub tick_pkts: u64,
+    pub tick_bytes: u64,
+    pub proto_counts: BTreeMap<String, u64>,
 }
 
 impl App {
@@ -70,6 +95,26 @@ impl App {
             filter_input: String::new(),
             filter_cursor: 0,
             pcap_writer: None,
+            overlay: None,
+            overlay_scroll: 0,
+            stream: None,
+            throughput_pps: VecDeque::new(),
+            throughput_bps: VecDeque::new(),
+            last_tick: Instant::now(),
+            tick_pkts: 0,
+            tick_bytes: 0,
+            proto_counts: BTreeMap::new(),
+        }
+    }
+
+    /// Advance the per-second throughput rings (runs every frame, even when paused).
+    pub fn tick_throughput(&mut self) {
+        if self.last_tick.elapsed() >= Duration::from_secs(1) {
+            push_capped(&mut self.throughput_pps, self.tick_pkts, THROUGHPUT_WINDOW);
+            push_capped(&mut self.throughput_bps, self.tick_bytes, THROUGHPUT_WINDOW);
+            self.tick_pkts = 0;
+            self.tick_bytes = 0;
+            self.last_tick = Instant::now();
         }
     }
 
@@ -91,6 +136,37 @@ impl App {
 
     pub fn selected_packet(&self) -> Option<&DecodedPacket> {
         self.visible_packet(self.selected)
+    }
+
+    fn toggle_overlay(&mut self, kind: OverlayKind) {
+        self.overlay = if self.overlay == Some(kind) {
+            None
+        } else {
+            self.overlay_scroll = 0;
+            Some(kind)
+        };
+    }
+
+    /// Build the reassembled conversation for the selected packet's flow and
+    /// open the follow-stream overlay.
+    fn open_stream(&mut self) {
+        if let Some(stream) = views::build_stream(self) {
+            self.stream = Some(stream);
+            self.overlay_scroll = 0;
+            self.overlay = Some(OverlayKind::Stream);
+        } else {
+            self.status_message = Some(StatusMessage {
+                text: "Select a TCP packet to follow its stream".into(),
+                is_error: true,
+            });
+        }
+    }
+}
+
+fn push_capped(ring: &mut VecDeque<u64>, value: u64, cap: usize) {
+    ring.push_back(value);
+    while ring.len() > cap {
+        ring.pop_front();
     }
 }
 
@@ -128,6 +204,7 @@ pub fn run_tui(
 
     loop {
         let frame_start = Instant::now();
+        app.tick_throughput();
 
         terminal.draw(|frame| render_frame(frame, &app))?;
 
@@ -166,17 +243,34 @@ fn handle_key_event(app: &mut App, key: event::KeyEvent) -> bool {
         InputMode::Normal => match key.code {
             KeyCode::Char('q') => return false,
             KeyCode::Char('j') | KeyCode::Down => {
-                let count = app.visible_count();
-                if count > 0 && app.selected < count - 1 {
-                    app.selected += 1;
+                if app.overlay.is_some() {
+                    app.overlay_scroll = app.overlay_scroll.saturating_add(1);
+                } else {
+                    let count = app.visible_count();
+                    if count > 0 && app.selected < count - 1 {
+                        app.selected += 1;
+                        app.detail_scroll = 0;
+                        app.hex_scroll = 0;
+                    }
+                }
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                if app.overlay.is_some() {
+                    app.overlay_scroll = app.overlay_scroll.saturating_sub(1);
+                } else if app.selected > 0 {
+                    app.selected -= 1;
                     app.detail_scroll = 0;
                     app.hex_scroll = 0;
                 }
             }
-            KeyCode::Char('k') | KeyCode::Up if app.selected > 0 => {
-                app.selected -= 1;
-                app.detail_scroll = 0;
-                app.hex_scroll = 0;
+            KeyCode::Char('t') => app.toggle_overlay(OverlayKind::TopTalkers),
+            KeyCode::Char('P') => app.toggle_overlay(OverlayKind::ProtocolDist),
+            KeyCode::Char('F') => app.toggle_overlay(OverlayKind::Flows),
+            KeyCode::Char('T') => app.toggle_overlay(OverlayKind::Timeline),
+            KeyCode::Char('f') => app.open_stream(),
+            KeyCode::Esc => {
+                app.overlay = None;
+                app.stream = None;
             }
             KeyCode::Char('G') | KeyCode::End => {
                 let count = app.visible_count();
@@ -284,6 +378,11 @@ fn drain_packets(app: &mut App, rx: &Receiver<DecodedPacket>) {
     let mut new_count = 0u64;
     while let Ok(pkt) = rx.try_recv() {
         app.total_received += 1;
+        app.tick_pkts += 1;
+        app.tick_bytes += pkt.wire_len as u64;
+        *app.proto_counts
+            .entry(pkt.summary.protocol.clone())
+            .or_insert(0) += 1;
 
         // Write to pcap if saving
         if let Some(ref mut writer) = app.pcap_writer {
@@ -356,21 +455,36 @@ fn rebuild_filter_indices(app: &mut App) {
 fn render_frame(frame: &mut ratatui::Frame, app: &App) {
     let area = frame.area();
 
-    // Layout: filter bar (3), main area (flexible), hex view (10), status bar (1)
+    // Overlay views take over the content area (filter bar + status stay).
+    if let Some(kind) = app.overlay {
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(1),
+            ])
+            .split(area);
+        filter_bar::render_filter_bar(frame, layout[0], app);
+        views::render_overlay(frame, layout[1], app, kind);
+        render_status_bar(frame, layout[2], app);
+        return;
+    }
+
+    // Normal layout: filter bar (3), main area, hex view (7), throughput (3), status (1).
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // filter bar
-            Constraint::Min(10),    // main area
-            Constraint::Length(10), // hex view
-            Constraint::Length(1),  // status bar
+            Constraint::Length(3),
+            Constraint::Min(8),
+            Constraint::Length(7),
+            Constraint::Length(3),
+            Constraint::Length(1),
         ])
         .split(area);
 
-    // Filter bar
     filter_bar::render_filter_bar(frame, main_layout[0], app);
 
-    // Main area: packet list (60%) | detail tree (40%)
     let main_split = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
@@ -378,12 +492,9 @@ fn render_frame(frame: &mut ratatui::Frame, app: &App) {
 
     packet_list::render_packet_list(frame, main_split[0], app);
     detail_tree::render_detail_tree(frame, main_split[1], app);
-
-    // Hex view
     hex_view::render_hex_view(frame, main_layout[2], app);
-
-    // Status bar
-    render_status_bar(frame, main_layout[3], app);
+    views::render_throughput(frame, main_layout[3], app);
+    render_status_bar(frame, main_layout[4], app);
 }
 
 fn render_status_bar(frame: &mut ratatui::Frame, area: Rect, app: &App) {
