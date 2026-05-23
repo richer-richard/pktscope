@@ -1,3 +1,4 @@
+pub mod alert;
 pub mod capture;
 pub mod decode;
 pub mod enrich;
@@ -8,3 +9,4 @@ pub mod identity;
 pub mod output;
 pub mod process;
 pub mod storage;
+pub mod store;

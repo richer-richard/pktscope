@@ -23,4 +23,10 @@ pub enum PktScopeError {
 
     #[error("unsupported link type: {0}")]
     UnsupportedLinktype(u16),
+
+    #[error("store error: {0}")]
+    Store(#[from] crate::store::StoreError),
+
+    #[error("ipc error: {0}")]
+    Ipc(String),
 }

@@ -27,3 +27,6 @@ libc = "0.2"
 tempfile = "3"
 md-5 = "0.10"
 sha2 = "0.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
+maxminddb = "0.24"
+dirs = "5"
