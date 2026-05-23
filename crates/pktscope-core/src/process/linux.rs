@@ -1,9 +1,11 @@
-use crate::decode::ProcessInfo;
 use std::collections::HashMap;
 use std::fs;
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+use super::SocketProc;
 
 static CACHE: Mutex<Option<ProcNetCache>> = Mutex::new(None);
 
@@ -14,11 +16,11 @@ struct ProcNetCache {
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 
-pub fn lookup_process_linux(
+pub fn lookup_socket_proc_linux(
     protocol: u8,
     local_addr: IpAddr,
     local_port: u16,
-) -> Option<ProcessInfo> {
+) -> Option<SocketProc> {
     let inode = {
         let mut cache_guard = CACHE.lock().ok()?;
         let cache = cache_guard.get_or_insert_with(|| ProcNetCache {
@@ -44,8 +46,11 @@ pub fn lookup_process_linux(
         cache.entries.get(&(local_addr, local_port)).copied()
     };
 
-    let inode = inode?;
-    find_pid_for_inode(inode)
+    find_pid_for_inode(inode?)
+}
+
+pub fn exe_path_for_pid_linux(pid: u32) -> Option<PathBuf> {
+    fs::read_link(format!("/proc/{pid}/exe")).ok()
 }
 
 fn parse_proc_net(contents: &str, entries: &mut HashMap<(IpAddr, u16), u64>) {
@@ -73,12 +78,10 @@ fn parse_addr_port(s: &str) -> Option<(IpAddr, u16)> {
     let addr_hex = parts[0];
     let addr = match addr_hex.len() {
         8 => {
-            // IPv4: stored as little-endian hex
             let n = u32::from_str_radix(addr_hex, 16).ok()?;
             IpAddr::V4(std::net::Ipv4Addr::from(n.to_be()))
         }
         32 => {
-            // IPv6: stored as four 32-bit words, each little-endian
             let mut bytes = [0u8; 16];
             for i in 0..4 {
                 let word = u32::from_str_radix(&addr_hex[i * 8..(i + 1) * 8], 16).ok()?;
@@ -95,8 +98,8 @@ fn parse_addr_port(s: &str) -> Option<(IpAddr, u16)> {
     Some((addr, port))
 }
 
-fn find_pid_for_inode(inode: u64) -> Option<ProcessInfo> {
-    let inode_str = format!("socket:[{}]", inode);
+fn find_pid_for_inode(inode: u64) -> Option<SocketProc> {
+    let inode_str = format!("socket:[{inode}]");
     let proc_dir = fs::read_dir("/proc").ok()?;
 
     for entry in proc_dir.flatten() {
@@ -106,18 +109,21 @@ fn find_pid_for_inode(inode: u64) -> Option<ProcessInfo> {
             continue;
         }
 
-        let fd_dir = format!("/proc/{}/fd", name_str);
+        let fd_dir = format!("/proc/{name_str}/fd");
         if let Ok(fds) = fs::read_dir(&fd_dir) {
             for fd_entry in fds.flatten() {
                 if let Ok(link) = fs::read_link(fd_entry.path()) {
                     if link.to_str() == Some(&inode_str) {
                         let pid: u32 = name_str.parse().ok()?;
-                        let comm_path = format!("/proc/{}/comm", pid);
-                        let name = fs::read_to_string(comm_path)
+                        let name = fs::read_to_string(format!("/proc/{pid}/comm"))
                             .unwrap_or_default()
                             .trim()
                             .to_string();
-                        return Some(ProcessInfo { pid, name });
+                        return Some(SocketProc {
+                            pid,
+                            name,
+                            exe_path: exe_path_for_pid_linux(pid),
+                        });
                     }
                 }
             }

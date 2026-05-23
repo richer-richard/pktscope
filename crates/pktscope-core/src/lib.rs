@@ -4,6 +4,7 @@ pub mod enrich;
 pub mod error;
 pub mod filter;
 pub mod flow;
+pub mod identity;
 pub mod output;
 pub mod process;
 pub mod storage;
