@@ -81,6 +81,15 @@ CREATE TABLE IF NOT EXISTS process_asns (
     PRIMARY KEY(process_id, asn)
 );
 
+-- Per-process set of destination "labels" (as_org / registrable domain / IP),
+-- driving signal 1 at org/domain granularity rather than per-IP (CDN-safe).
+CREATE TABLE IF NOT EXISTS process_labels (
+    process_id    INTEGER NOT NULL REFERENCES processes(id) ON DELETE CASCADE,
+    label         TEXT NOT NULL,
+    first_seen_ms INTEGER NOT NULL,
+    PRIMARY KEY(process_id, label)
+);
+
 CREATE TABLE IF NOT EXISTS volume_stats (
     process_id        INTEGER PRIMARY KEY REFERENCES processes(id) ON DELETE CASCADE,
     ewma_mean         REAL NOT NULL DEFAULT 0,

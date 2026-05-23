@@ -292,6 +292,16 @@ impl Store {
         Ok(n > 0)
     }
 
+    /// Returns true if the destination label (org/domain/IP) was newly recorded
+    /// for this process. Drives signal 1 at org/domain granularity.
+    pub fn note_label(&self, process_id: i64, label: &str, ts: i64) -> Result<bool> {
+        let n = self.conn.execute(
+            "INSERT OR IGNORE INTO process_labels(process_id, label, first_seen_ms) VALUES(?1, ?2, ?3)",
+            params![process_id, label, ts],
+        )?;
+        Ok(n > 0)
+    }
+
     // --- volume baseline --------------------------------------------------
 
     pub fn get_volume_stat(&self, process_id: i64) -> Result<Option<VolumeStat>> {

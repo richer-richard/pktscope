@@ -3,6 +3,11 @@
 //! module defines the shared `Alert` / `AlertKind` / `Severity` types used by
 //! the store, IPC, and the engine.
 
+pub mod baseline;
+pub mod detectors;
+
+pub use detectors::{AlertConfig, AlertEngine, FlowEvent};
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
