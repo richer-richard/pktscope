@@ -30,6 +30,7 @@ fn main() -> Result<()> {
             interface,
             filter,
             write,
+            pcapng,
             json,
             snaplen,
             buffer_size,
@@ -71,6 +72,7 @@ fn main() -> Result<()> {
                     buffer_size,
                     write.as_deref(),
                     config.filters.clone(),
+                    pcapng,
                 )?;
             }
 
@@ -101,7 +103,7 @@ fn main() -> Result<()> {
             if json {
                 json_output_loop(decoded_rx, stop.clone(), None, None)?;
             } else {
-                tui::run_tui(decoded_rx, buffer_size, None, config.filters.clone())?;
+                tui::run_tui(decoded_rx, buffer_size, None, config.filters.clone(), false)?;
             }
 
             stop.store(true, Ordering::Relaxed);

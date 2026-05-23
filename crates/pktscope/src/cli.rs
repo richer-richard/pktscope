@@ -32,6 +32,10 @@ pub enum Command {
         #[arg(short, long)]
         write: Option<PathBuf>,
 
+        /// Write in PCAPNG format instead of classic pcap (with -w)
+        #[arg(long)]
+        pcapng: bool,
+
         /// Output as JSON lines instead of TUI
         #[arg(long)]
         json: bool,

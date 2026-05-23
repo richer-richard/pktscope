@@ -21,7 +21,9 @@ use pktscope_core::decode::DecodedPacket;
 use pktscope_core::filter::ast::FilterExpr;
 use pktscope_core::filter::eval::eval_filter;
 use pktscope_core::filter::parser::parse_filter;
+use pktscope_core::output::PacketSink;
 use pktscope_core::output::pcap_writer::PcapWriter;
+use pktscope_core::output::pcapng_writer::PcapngWriter;
 use pktscope_core::storage::ring::PacketRing;
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(33);
@@ -66,7 +68,7 @@ pub struct App {
     pub total_dropped: u64,
     pub filter_input: String,
     pub filter_cursor: usize,
-    pub pcap_writer: Option<PcapWriter<std::io::BufWriter<std::fs::File>>>,
+    pub pcap_writer: Option<Box<dyn PacketSink>>,
 
     // Phase-4 stats / follow-stream overlays (all computed from the packet ring).
     pub overlay: Option<OverlayKind>,
@@ -213,6 +215,7 @@ pub fn run_tui(
     buffer_size: usize,
     save_path: Option<&Path>,
     saved_filters: HashMap<String, String>,
+    pcapng: bool,
 ) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -235,11 +238,12 @@ pub fn run_tui(
     if let Some(path) = save_path {
         let file = std::fs::File::create(path)?;
         let writer = std::io::BufWriter::new(file);
-        app.pcap_writer = Some(PcapWriter::new(
-            writer,
-            pktscope_core::capture::Linktype::Ethernet,
-            65535,
-        )?);
+        let lt = pktscope_core::capture::Linktype::Ethernet;
+        app.pcap_writer = Some(if pcapng {
+            Box::new(PcapngWriter::new(writer, lt, 65535)?)
+        } else {
+            Box::new(PcapWriter::new(writer, lt, 65535)?)
+        });
     }
 
     loop {
