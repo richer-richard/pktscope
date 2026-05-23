@@ -17,6 +17,11 @@ pub fn render_filter_bar(frame: &mut ratatui::Frame, area: Rect, app: &App) {
                 Style::default().fg(Color::Yellow),
             )
         }
+        InputMode::Search => (
+            "Filter: (Ctrl-F search active — see status bar)".to_string(),
+            Style::default().fg(Color::DarkGray),
+            Style::default().fg(Color::DarkGray),
+        ),
         InputMode::Normal => {
             if let Some(ref filter) = app.active_filter {
                 let _ = filter; // used to check presence

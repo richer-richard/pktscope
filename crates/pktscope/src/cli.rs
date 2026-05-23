@@ -20,9 +20,9 @@ pub enum Command {
 
     /// Capture packets from a live interface
     Capture {
-        /// Network interface to capture on (e.g., "eth0", "en0")
+        /// Network interface to capture on (defaults to capture.default_interface in config)
         #[arg(short, long)]
-        interface: String,
+        interface: Option<String>,
 
         /// BPF capture filter (applied at libpcap level)
         #[arg(short, long)]
@@ -43,6 +43,14 @@ pub enum Command {
         /// Maximum number of packets to keep in memory
         #[arg(long, default_value_t = 100_000)]
         buffer_size: usize,
+
+        /// Stop after capturing this many packets (one-shot mode)
+        #[arg(short = 'c', long)]
+        count: Option<u64>,
+
+        /// Stop after this many seconds
+        #[arg(short = 'G', long)]
+        duration: Option<u64>,
     },
 
     /// Read and analyze packets from a pcap file
@@ -78,6 +86,14 @@ pub enum Command {
         /// Override the daemon socket path directly
         #[arg(long)]
         socket: Option<PathBuf>,
+    },
+
+    /// Diff two pcap files by packet content
+    Diff {
+        /// First pcap file
+        file_a: PathBuf,
+        /// Second pcap file
+        file_b: PathBuf,
     },
 }
 

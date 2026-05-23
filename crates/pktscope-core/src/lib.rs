@@ -1,6 +1,8 @@
 pub mod alert;
+pub mod analysis;
 pub mod capture;
 pub mod decode;
+pub mod diff;
 pub mod enrich;
 pub mod error;
 pub mod filter;

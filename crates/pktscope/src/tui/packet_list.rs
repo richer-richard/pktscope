@@ -1,6 +1,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Row, Table};
 
+use pktscope_core::analysis::analyze;
 use pktscope_core::decode::ColorHint;
 
 use super::App;
@@ -35,9 +36,19 @@ pub fn render_packet_list(frame: &mut ratatui::Frame, area: Rect, app: &App) {
         .filter_map(|i| {
             let pkt = app.visible_packet(i)?;
             let elapsed = pkt.timestamp.format("%H:%M:%S%.3f").to_string();
+            let anomaly = analyze(pkt);
+            let matches_search = app.search_re.as_ref().is_some_and(|re| {
+                re.is_match(&pkt.summary.info)
+                    || re.is_match(&pkt.summary.source)
+                    || re.is_match(&pkt.summary.destination)
+            });
 
             let style = if i == app.selected {
                 Style::default().bg(Color::DarkGray).fg(Color::White)
+            } else if matches_search {
+                Style::default().bg(Color::Yellow).fg(Color::Black)
+            } else if anomaly.is_some() {
+                Style::default().fg(Color::LightRed).bold()
             } else if pkt.retransmission {
                 Style::default().fg(Color::Red)
             } else {
@@ -53,16 +64,21 @@ pub fn render_packet_list(frame: &mut ratatui::Frame, area: Rect, app: &App) {
                 }
             };
 
-            // Truncate info to fit
-            let info = if pkt.summary.info.len() > 60 {
-                format!("{}…", &pkt.summary.info[..59])
+            let bookmark = if app.bookmarks.contains(&pkt.number) {
+                "★"
             } else {
-                pkt.summary.info.clone()
+                " "
             };
+            let info_full = match &anomaly {
+                Some(a) => format!("⚠ {} [{}]", pkt.summary.info, a.detail),
+                None => pkt.summary.info.clone(),
+            };
+            // Char-safe truncation (info may contain multi-byte glyphs).
+            let info: String = info_full.chars().take(70).collect();
 
             Some(
                 Row::new(vec![
-                    pkt.number.to_string(),
+                    format!("{bookmark}{}", pkt.number),
                     elapsed,
                     pkt.summary.source.clone(),
                     pkt.summary.destination.clone(),

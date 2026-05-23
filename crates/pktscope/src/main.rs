@@ -1,4 +1,5 @@
 mod cli;
+mod config;
 #[cfg(unix)]
 mod inspect;
 mod permissions;
@@ -21,6 +22,7 @@ const CHANNEL_CAPACITY: usize = 10_000;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let config = config::Config::load();
 
     match cli.command {
         Command::ListInterfaces => list_interfaces(),
@@ -31,8 +33,17 @@ fn main() -> Result<()> {
             json,
             snaplen,
             buffer_size,
+            count,
+            duration,
         } => {
             permissions::check_capture_permissions()?;
+            let interface = interface
+                .or_else(|| config.capture.default_interface.clone())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "no interface specified (use -i <iface> or set capture.default_interface in config.toml)"
+                    )
+                })?;
 
             let stop = Arc::new(AtomicBool::new(false));
 
@@ -53,9 +64,14 @@ fn main() -> Result<()> {
                 .spawn(move || decode_thread(raw_rx, decoded_tx, decode_stop))?;
 
             if json {
-                json_output_loop(decoded_rx, stop.clone())?;
+                json_output_loop(decoded_rx, stop.clone(), count, duration)?;
             } else {
-                tui::run_tui(decoded_rx, buffer_size, write.as_deref())?;
+                tui::run_tui(
+                    decoded_rx,
+                    buffer_size,
+                    write.as_deref(),
+                    config.filters.clone(),
+                )?;
             }
 
             stop.store(true, Ordering::Relaxed);
@@ -83,9 +99,9 @@ fn main() -> Result<()> {
                 .spawn(move || decode_thread(raw_rx, decoded_tx, decode_stop))?;
 
             if json {
-                json_output_loop(decoded_rx, stop.clone())?;
+                json_output_loop(decoded_rx, stop.clone(), None, None)?;
             } else {
-                tui::run_tui(decoded_rx, buffer_size, None)?;
+                tui::run_tui(decoded_rx, buffer_size, None, config.filters.clone())?;
             }
 
             stop.store(true, Ordering::Relaxed);
@@ -95,7 +111,38 @@ fn main() -> Result<()> {
         }
         Command::Monitor { action } => monitor_cmd(action),
         Command::Inspect { state_dir, socket } => inspect_cmd(state_dir, socket),
+        Command::Diff { file_a, file_b } => diff_cmd(file_a, file_b),
     }
+}
+
+fn read_pcap(path: &std::path::Path) -> Result<Vec<decode::DecodedPacket>> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let (tx, rx) = bounded(CHANNEL_CAPACITY);
+    let handle = capture::file::start_file_capture(path, None, tx, stop.clone())?;
+    let mut out = Vec::new();
+    while let Ok(raw) = rx.recv() {
+        out.push(decode::decode_packet(&raw));
+    }
+    let _ = handle.join();
+    Ok(out)
+}
+
+fn diff_cmd(file_a: PathBuf, file_b: PathBuf) -> Result<()> {
+    let pa = read_pcap(&file_a)?;
+    let pb = read_pcap(&file_b)?;
+    let d = pktscope_core::diff::diff_by_content(&pa, &pb);
+    println!("{}: {} packets", file_a.display(), pa.len());
+    println!("{}: {} packets", file_b.display(), pb.len());
+    println!("common: {}", d.common);
+    println!("only in A ({}):", d.only_a.len());
+    for &i in d.only_a.iter().take(20) {
+        println!("  - #{} {}", pa[i].number, pa[i].summary.info);
+    }
+    println!("only in B ({}):", d.only_b.len());
+    for &i in d.only_b.iter().take(20) {
+        println!("  + #{} {}", pb[i].number, pb[i].summary.info);
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -299,15 +346,34 @@ fn find_local_ip(pkt: &decode::DecodedPacket) -> Option<std::net::IpAddr> {
 fn json_output_loop(
     rx: crossbeam_channel::Receiver<decode::DecodedPacket>,
     stop: Arc<AtomicBool>,
+    count: Option<u64>,
+    duration: Option<u64>,
 ) -> Result<()> {
     let stdout = std::io::stdout();
     let mut writer = std::io::BufWriter::new(stdout.lock());
+    let start = std::time::Instant::now();
+    let mut emitted = 0u64;
     while !stop.load(Ordering::Relaxed) {
+        if let Some(secs) = duration {
+            if start.elapsed().as_secs() >= secs {
+                break;
+            }
+        }
         match rx.recv_timeout(std::time::Duration::from_millis(100)) {
-            Ok(pkt) => output::json::write_json_line(&mut writer, &pkt)?,
+            Ok(pkt) => {
+                output::json::write_json_line(&mut writer, &pkt)?;
+                emitted += 1;
+                if let Some(c) = count {
+                    if emitted >= c {
+                        break;
+                    }
+                }
+            }
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
         }
     }
+    // One-shot: signal the capture/decode threads to wind down.
+    stop.store(true, Ordering::Relaxed);
     Ok(())
 }

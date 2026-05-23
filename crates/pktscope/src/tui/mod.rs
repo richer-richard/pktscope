@@ -4,7 +4,7 @@ pub mod hex_view;
 pub mod packet_list;
 pub mod views;
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -30,6 +30,7 @@ const FRAME_INTERVAL: Duration = Duration::from_millis(33);
 pub enum InputMode {
     Normal,
     FilterInput,
+    Search,
 }
 
 /// Full-area statistics/stream overlays toggled from Normal mode.
@@ -40,6 +41,7 @@ pub enum OverlayKind {
     Flows,
     Timeline,
     Stream,
+    Bookmarks,
 }
 
 const THROUGHPUT_WINDOW: usize = 60;
@@ -76,6 +78,10 @@ pub struct App {
     pub tick_pkts: u64,
     pub tick_bytes: u64,
     pub proto_counts: BTreeMap<String, u64>,
+    pub saved_filters: HashMap<String, String>,
+    pub bookmarks: HashSet<u64>,
+    pub search_query: String,
+    pub search_re: Option<regex::Regex>,
 }
 
 impl App {
@@ -104,6 +110,38 @@ impl App {
             tick_pkts: 0,
             tick_bytes: 0,
             proto_counts: BTreeMap::new(),
+            saved_filters: HashMap::new(),
+            bookmarks: HashSet::new(),
+            search_query: String::new(),
+            search_re: None,
+        }
+    }
+
+    fn toggle_bookmark(&mut self) {
+        if let Some(num) = self.selected_packet().map(|p| p.number) {
+            if !self.bookmarks.insert(num) {
+                self.bookmarks.remove(&num);
+            }
+        }
+    }
+
+    /// Jump to the next packet (after `selected`) matching the active regex.
+    fn next_search_match(&mut self) {
+        let Some(re) = self.search_re.clone() else {
+            return;
+        };
+        let count = self.visible_count();
+        for off in 1..=count {
+            let i = (self.selected + off) % count.max(1);
+            if let Some(p) = self.visible_packet(i) {
+                if re.is_match(&p.summary.info)
+                    || re.is_match(&p.summary.source)
+                    || re.is_match(&p.summary.destination)
+                {
+                    self.selected = i;
+                    return;
+                }
+            }
         }
     }
 
@@ -174,6 +212,7 @@ pub fn run_tui(
     rx: Receiver<DecodedPacket>,
     buffer_size: usize,
     save_path: Option<&Path>,
+    saved_filters: HashMap<String, String>,
 ) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -191,6 +230,7 @@ pub fn run_tui(
     }));
 
     let mut app = App::new(buffer_size);
+    app.saved_filters = saved_filters;
 
     if let Some(path) = save_path {
         let file = std::fs::File::create(path)?;
@@ -238,6 +278,11 @@ fn handle_key_event(app: &mut App, key: event::KeyEvent) -> bool {
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         return false;
     }
+    if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('f') {
+        app.mode = InputMode::Search;
+        app.search_query.clear();
+        return true;
+    }
 
     match app.mode {
         InputMode::Normal => match key.code {
@@ -268,6 +313,9 @@ fn handle_key_event(app: &mut App, key: event::KeyEvent) -> bool {
             KeyCode::Char('F') => app.toggle_overlay(OverlayKind::Flows),
             KeyCode::Char('T') => app.toggle_overlay(OverlayKind::Timeline),
             KeyCode::Char('f') => app.open_stream(),
+            KeyCode::Char('m') => app.toggle_bookmark(),
+            KeyCode::Char('\'') => app.toggle_overlay(OverlayKind::Bookmarks),
+            KeyCode::Char('n') => app.next_search_match(),
             KeyCode::Esc => {
                 app.overlay = None;
                 app.stream = None;
@@ -331,19 +379,34 @@ fn handle_key_event(app: &mut App, key: event::KeyEvent) -> bool {
                         is_error: false,
                     });
                 } else {
-                    match parse_filter(&app.filter_input) {
+                    // `:name` recalls a saved named filter from config.toml.
+                    let expr = match app.filter_input.strip_prefix(':') {
+                        Some(name) => match app.saved_filters.get(name) {
+                            Some(f) => f.clone(),
+                            None => {
+                                app.status_message = Some(StatusMessage {
+                                    text: format!("No saved filter ':{name}'"),
+                                    is_error: true,
+                                });
+                                app.mode = InputMode::Normal;
+                                return true;
+                            }
+                        },
+                        None => app.filter_input.clone(),
+                    };
+                    match parse_filter(&expr) {
                         Ok(filter) => {
                             app.active_filter = Some(filter);
                             rebuild_filter_indices(app);
                             app.selected = 0;
                             app.status_message = Some(StatusMessage {
-                                text: format!("Filter applied: {}", app.filter_input),
+                                text: format!("Filter applied: {expr}"),
                                 is_error: false,
                             });
                         }
                         Err(e) => {
                             app.status_message = Some(StatusMessage {
-                                text: format!("Filter error: {}", e),
+                                text: format!("Filter error: {e}"),
                                 is_error: true,
                             });
                         }
@@ -368,6 +431,33 @@ fn handle_key_event(app: &mut App, key: event::KeyEvent) -> bool {
                 app.filter_input.insert(app.filter_cursor, c);
                 app.filter_cursor += 1;
             }
+            _ => {}
+        },
+        InputMode::Search => match key.code {
+            KeyCode::Enter => {
+                match regex::Regex::new(&app.search_query) {
+                    Ok(re) => {
+                        app.search_re = Some(re);
+                        app.next_search_match();
+                    }
+                    Err(e) => {
+                        app.status_message = Some(StatusMessage {
+                            text: format!("Bad regex: {e}"),
+                            is_error: true,
+                        });
+                    }
+                }
+                app.mode = InputMode::Normal;
+            }
+            KeyCode::Esc => {
+                app.search_query.clear();
+                app.search_re = None;
+                app.mode = InputMode::Normal;
+            }
+            KeyCode::Backspace => {
+                app.search_query.pop();
+            }
+            KeyCode::Char(c) => app.search_query.push(c),
             _ => {}
         },
     }
@@ -500,6 +590,13 @@ fn render_frame(frame: &mut ratatui::Frame, app: &App) {
 fn render_status_bar(frame: &mut ratatui::Frame, area: Rect, app: &App) {
     let displayed = app.visible_count();
     let state = if app.paused { "PAUSED" } else { "CAPTURING" };
+
+    if app.mode == InputMode::Search {
+        let p = Paragraph::new(format!(" /regex: {}", app.search_query))
+            .style(Style::default().fg(Color::Black).bg(Color::Yellow));
+        frame.render_widget(p, area);
+        return;
+    }
 
     let status_text = match &app.status_message {
         Some(msg) => format!(

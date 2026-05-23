@@ -20,7 +20,40 @@ pub fn render_overlay(f: &mut Frame, area: Rect, app: &App, kind: OverlayKind) {
         OverlayKind::Flows => render_flows(f, area, app),
         OverlayKind::Timeline => render_timeline(f, area, app),
         OverlayKind::Stream => render_stream(f, area, app),
+        OverlayKind::Bookmarks => render_bookmarks(f, area, app),
     }
+}
+
+pub fn render_bookmarks(f: &mut Frame, area: Rect, app: &App) {
+    let rows: Vec<Row> = app
+        .packets
+        .iter()
+        .filter(|p| app.bookmarks.contains(&p.number))
+        .skip(app.overlay_scroll)
+        .map(|p| {
+            Row::new(vec![
+                p.number.to_string(),
+                p.timestamp.format("%H:%M:%S%.3f").to_string(),
+                format!("{} → {}", p.summary.source, p.summary.destination),
+                p.summary.info.chars().take(50).collect::<String>(),
+            ])
+        })
+        .collect();
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(8),
+            Constraint::Length(14),
+            Constraint::Min(24),
+            Constraint::Min(20),
+        ],
+    )
+    .header(header(&["#", "Time", "Endpoints", "Info"]))
+    .block(block(&format!(
+        "Bookmarks ({}) — m to toggle, Esc to close",
+        app.bookmarks.len()
+    )));
+    f.render_widget(table, area);
 }
 
 pub fn fmt_bytes(b: u64) -> String {

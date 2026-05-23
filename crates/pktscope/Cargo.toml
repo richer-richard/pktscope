@@ -20,6 +20,10 @@ ratatui.workspace = true
 crossterm.workspace = true
 pcap.workspace = true
 chrono.workspace = true
+toml.workspace = true
+dirs.workspace = true
+regex.workspace = true
+serde.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
