@@ -17,6 +17,8 @@ thiserror.workspace = true
 lru.workspace = true
 chrono.workspace = true
 nom.workspace = true
+md-5.workspace = true
+sha2.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true

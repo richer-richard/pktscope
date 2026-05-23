@@ -1,7 +1,7 @@
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use pktscope_core::decode::Layer;
+use pktscope_core::decode::{DnsRdata, Layer, TlsHandshakeMessage};
 
 use super::App;
 
@@ -243,6 +243,27 @@ fn detail_lines(layer: &Layer) -> Vec<Line<'static>> {
                     field_style,
                 )));
             }
+            for ans in &dns.answers {
+                let rd = match &ans.rdata {
+                    DnsRdata::A(ip) => format!("A {ip}"),
+                    DnsRdata::Aaaa(ip) => format!("AAAA {ip}"),
+                    DnsRdata::Cname(c) => format!("CNAME {c}"),
+                    DnsRdata::Ns(n) => format!("NS {n}"),
+                    DnsRdata::Ptr(p) => format!("PTR {p}"),
+                    DnsRdata::Mx {
+                        preference,
+                        exchange,
+                    } => format!("MX {preference} {exchange}"),
+                    DnsRdata::Txt(t) => format!("TXT {}", t.join(" ")),
+                    DnsRdata::Srv { target, port, .. } => format!("SRV {target}:{port}"),
+                    DnsRdata::Soa { mname, .. } => format!("SOA {mname}"),
+                    DnsRdata::Unknown { rtype, .. } => format!("type{rtype}"),
+                };
+                lines.push(Line::from(Span::styled(
+                    format!("    Answer: {} → {}", ans.name, rd),
+                    field_style,
+                )));
+            }
         }
         Layer::TlsClientHello(tls) => {
             lines.push(Line::from(Span::styled(
@@ -254,6 +275,49 @@ fn detail_lines(layer: &Layer) -> Vec<Line<'static>> {
                     format!("    Server Name: {}", sni),
                     field_style,
                 )));
+            }
+            if !tls.alpn.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    format!("    ALPN: {}", tls.alpn.join(", ")),
+                    field_style,
+                )));
+            }
+            if let Some(ref ja3) = tls.ja3 {
+                lines.push(Line::from(Span::styled(
+                    format!("    JA3: {ja3}"),
+                    field_style,
+                )));
+            }
+            if let Some(ref ja4) = tls.ja4 {
+                lines.push(Line::from(Span::styled(
+                    format!("    JA4: {ja4}"),
+                    field_style,
+                )));
+            }
+        }
+        Layer::TlsHandshake(hs) => {
+            lines.push(Line::from(Span::styled(
+                "▸ TLS Handshake".to_string(),
+                header_style,
+            )));
+            for m in &hs.messages {
+                let s = match m {
+                    TlsHandshakeMessage::ServerHello {
+                        version,
+                        cipher_suite,
+                        alpn,
+                    } => format!(
+                        "    Server Hello (version=0x{version:04x}, cipher=0x{cipher_suite:04x}, alpn={})",
+                        alpn.join(",")
+                    ),
+                    TlsHandshakeMessage::Certificate { cert_count } => {
+                        format!("    Certificate ({cert_count} certs)")
+                    }
+                    TlsHandshakeMessage::Other { msg_type } => {
+                        format!("    Handshake type {msg_type}")
+                    }
+                };
+                lines.push(Line::from(Span::styled(s, field_style)));
             }
         }
         Layer::Payload { offset, len } => {

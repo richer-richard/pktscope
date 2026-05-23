@@ -46,6 +46,7 @@ fn has_protocol(proto: ProtocolAtom, layers: &[Layer]) -> bool {
                 | (ProtocolAtom::Icmpv6, Layer::Icmpv6(_))
                 | (ProtocolAtom::Dns, Layer::Dns(_))
                 | (ProtocolAtom::Tls, Layer::TlsClientHello(_))
+                | (ProtocolAtom::Tls, Layer::TlsHandshake(_))
         )
     })
 }
@@ -213,11 +214,15 @@ mod tests {
                 Layer::Dns(DnsInfo {
                     transaction_id: 0xABCD,
                     is_response: false,
+                    rcode: 0,
                     questions: vec![DnsQuestion {
                         qname: "example.com".into(),
                         qtype: 1,
                         qclass: 1,
                     }],
+                    answers: vec![],
+                    authorities: vec![],
+                    additionals: vec![],
                     header_range: (42, 70),
                 }),
             ],
@@ -295,6 +300,16 @@ mod tests {
         let mut pkt = make_tcp_packet();
         pkt.layers.push(Layer::TlsClientHello(TlsClientHelloInfo {
             sni: Some("github.com".into()),
+            alpn: vec![],
+            cipher_suites: vec![],
+            extensions: vec![],
+            supported_groups: vec![],
+            ec_point_formats: vec![],
+            signature_algorithms: vec![],
+            supported_versions: vec![],
+            legacy_version: 0x0303,
+            ja3: None,
+            ja4: None,
             header_range: (54, 100),
         }));
         assert!(eval_filter(

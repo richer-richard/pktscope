@@ -1,12 +1,13 @@
 pub mod arp;
-pub mod dns_question;
+pub mod dns;
 pub mod ethernet;
 pub mod icmp;
 pub mod icmpv6;
 pub mod ipv4;
 pub mod ipv6;
+pub mod ja;
 pub mod tcp;
-pub mod tls_sni;
+pub mod tls;
 pub mod udp;
 
 use crate::capture::{Linktype, RawPacket};
@@ -88,6 +89,7 @@ pub enum Layer {
     Icmpv6(Icmpv6Header),
     Dns(DnsInfo),
     TlsClientHello(TlsClientHelloInfo),
+    TlsHandshake(TlsHandshakeInfo),
     Payload { offset: usize, len: usize },
 }
 
@@ -244,7 +246,11 @@ pub struct Icmpv6Header {
 pub struct DnsInfo {
     pub transaction_id: u16,
     pub is_response: bool,
+    pub rcode: u8,
     pub questions: Vec<DnsQuestion>,
+    pub answers: Vec<DnsRecord>,
+    pub authorities: Vec<DnsRecord>,
+    pub additionals: Vec<DnsRecord>,
     pub header_range: (usize, usize),
 }
 
@@ -256,9 +262,84 @@ pub struct DnsQuestion {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DnsRecord {
+    pub name: String,
+    pub rtype: u16,
+    pub rclass: u16,
+    pub ttl: u32,
+    pub rdata: DnsRdata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DnsRdata {
+    A(Ipv4Addr),
+    Aaaa(Ipv6Addr),
+    Cname(String),
+    Ns(String),
+    Ptr(String),
+    Mx {
+        preference: u16,
+        exchange: String,
+    },
+    Txt(Vec<String>),
+    Srv {
+        priority: u16,
+        weight: u16,
+        port: u16,
+        target: String,
+    },
+    Soa {
+        mname: String,
+        rname: String,
+        serial: u32,
+        refresh: u32,
+        retry: u32,
+        expire: u32,
+        minimum: u32,
+    },
+    Unknown {
+        rtype: u16,
+        data: Vec<u8>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TlsClientHelloInfo {
     pub sni: Option<String>,
+    pub alpn: Vec<String>,
+    pub cipher_suites: Vec<u16>,
+    pub extensions: Vec<u16>,
+    pub supported_groups: Vec<u16>,
+    pub ec_point_formats: Vec<u8>,
+    pub signature_algorithms: Vec<u16>,
+    pub supported_versions: Vec<u16>,
+    pub legacy_version: u16,
+    /// JA3 fingerprint (MD5 hex of the canonical JA3 string).
+    pub ja3: Option<String>,
+    /// JA4 fingerprint.
+    pub ja4: Option<String>,
     pub header_range: (usize, usize),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TlsHandshakeInfo {
+    pub messages: Vec<TlsHandshakeMessage>,
+    pub header_range: (usize, usize),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TlsHandshakeMessage {
+    ServerHello {
+        version: u16,
+        cipher_suite: u16,
+        alpn: Vec<String>,
+    },
+    Certificate {
+        cert_count: usize,
+    },
+    Other {
+        msg_type: u8,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -338,12 +419,13 @@ fn decode_layers(data: &[u8], linktype: Linktype) -> Vec<Layer> {
                 let app_offset = offset;
                 if app_offset < data.len() {
                     if transport.src_port == 53 || transport.dst_port == 53 {
-                        if let Some(dns) = dns_question::try_decode_dns(data, app_offset) {
+                        if let Some(dns) = dns::try_decode_dns(data, app_offset) {
                             layers.push(Layer::Dns(dns));
                         }
-                    } else if let Some(tls) = tls_sni::try_decode_tls_client_hello(data, app_offset)
-                    {
+                    } else if let Some(tls) = tls::try_decode_tls_client_hello(data, app_offset) {
                         layers.push(Layer::TlsClientHello(tls));
+                    } else if let Some(hs) = tls::try_decode_tls_handshake(data, app_offset) {
+                        layers.push(Layer::TlsHandshake(hs));
                     }
                     if app_offset < data.len() {
                         layers.push(Layer::Payload {
@@ -451,9 +533,23 @@ fn compute_summary(layers: &[Layer], wire_len: u32) -> PacketSummary {
                 let qnames: Vec<&str> = dns.questions.iter().map(|q| q.qname.as_str()).collect();
                 let names = qnames.join(", ");
                 info = if dns.is_response {
-                    format!("DNS A {}", names)
+                    let answers: Vec<String> = dns
+                        .answers
+                        .iter()
+                        .filter_map(|r| match &r.rdata {
+                            DnsRdata::A(ip) => Some(ip.to_string()),
+                            DnsRdata::Aaaa(ip) => Some(ip.to_string()),
+                            DnsRdata::Cname(c) => Some(format!("CNAME {c}")),
+                            _ => None,
+                        })
+                        .collect();
+                    if answers.is_empty() {
+                        format!("DNS A {names}")
+                    } else {
+                        format!("DNS A {names} → {}", answers.join(", "))
+                    }
                 } else {
-                    format!("DNS Q {}", names)
+                    format!("DNS Q {names}")
                 };
             }
             Layer::TlsClientHello(tls) => {
@@ -462,6 +558,23 @@ fn compute_summary(layers: &[Layer], wire_len: u32) -> PacketSummary {
                 info = match &tls.sni {
                     Some(sni) => format!("TLS → {}", sni),
                     None => "TLS Client Hello".into(),
+                };
+            }
+            Layer::TlsHandshake(hs) => {
+                protocol = "TLS".into();
+                color_hint = ColorHint::Tls;
+                info = match hs.messages.first() {
+                    Some(TlsHandshakeMessage::ServerHello { alpn, .. }) if !alpn.is_empty() => {
+                        format!("TLS Server Hello (alpn: {})", alpn.join(","))
+                    }
+                    Some(TlsHandshakeMessage::ServerHello { .. }) => "TLS Server Hello".into(),
+                    Some(TlsHandshakeMessage::Certificate { cert_count }) => {
+                        format!("TLS Certificate ({cert_count})")
+                    }
+                    Some(TlsHandshakeMessage::Other { msg_type }) => {
+                        format!("TLS Handshake (type {msg_type})")
+                    }
+                    None => "TLS Handshake".into(),
                 };
             }
             Layer::Payload { .. } => {}
