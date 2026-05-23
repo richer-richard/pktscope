@@ -6,7 +6,7 @@
 pub mod baseline;
 pub mod detectors;
 
-pub use detectors::{AlertConfig, AlertEngine, FlowEvent};
+pub use detectors::{AlertConfig, AlertEngine, EvalOutcome, FlowEvent};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

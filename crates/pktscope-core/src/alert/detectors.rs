@@ -73,6 +73,15 @@ impl AlertConfig {
     }
 }
 
+/// Result of [`AlertEngine::evaluate_full`]: fired alerts plus the resolved
+/// process/destination row ids.
+#[derive(Debug, Clone)]
+pub struct EvalOutcome {
+    pub alerts: Vec<Alert>,
+    pub process_id: Option<i64>,
+    pub dest_id: i64,
+}
+
 /// Runs the five detectors against the persisted baseline. During the learning
 /// window the baseline is populated but no alerts are emitted; afterwards novel
 /// observations fire (subject to durable cooldown).
@@ -89,7 +98,14 @@ impl AlertEngine {
         &self.cfg
     }
 
+    /// Convenience wrapper returning only the fired alerts.
     pub fn evaluate(&self, store: &Store, ev: &FlowEvent) -> Result<Vec<Alert>, StoreError> {
+        Ok(self.evaluate_full(store, ev)?.alerts)
+    }
+
+    /// Run all detectors; returns fired alerts plus the resolved process/dest
+    /// row ids (for connection-history insertion in the daemon).
+    pub fn evaluate_full(&self, store: &Store, ev: &FlowEvent) -> Result<EvalOutcome, StoreError> {
         let state = baseline::ensure_started(store, &self.cfg, ev.ts)?;
         let active = state == BaselineState::Active;
         let mut alerts = Vec::new();
@@ -101,7 +117,11 @@ impl AlertEngine {
 
         // Without attribution we keep destination/history but emit no per-process signals.
         let Some(p) = &ev.proc_ else {
-            return Ok(alerts);
+            return Ok(EvalOutcome {
+                alerts,
+                process_id: None,
+                dest_id,
+            });
         };
         let exe = p
             .exe_path
@@ -282,7 +302,11 @@ impl AlertEngine {
             }
         }
 
-        Ok(alerts)
+        Ok(EvalOutcome {
+            alerts,
+            process_id: Some(pid_row),
+            dest_id,
+        })
     }
 
     fn emit(&self, store: &Store, out: &mut Vec<Alert>, alert: Alert) -> Result<(), StoreError> {

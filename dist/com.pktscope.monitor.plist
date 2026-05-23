@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  pktscope egress monitor — launchd LaunchDaemon template (macOS).
+
+  Install (runs as root, required for BPF capture + full socket→pid visibility):
+    sudo cp dist/com.pktscope.monitor.plist /Library/LaunchDaemons/
+    # edit the interface (en0) and pktscope path below, then:
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.pktscope.monitor.plist
+    sudo launchctl enable system/com.pktscope.monitor
+  Uninstall:
+    sudo launchctl bootout system /Library/LaunchDaemons/com.pktscope.monitor.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.pktscope.monitor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/pktscope</string>
+        <string>monitor</string>
+        <string>run</string>
+        <string>-i</string>
+        <string>en0</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/usr/local/var/log/pktscope/monitor.log</string>
+    <key>StandardErrorPath</key>
+    <string>/usr/local/var/log/pktscope/monitor.err</string>
+</dict>
+</plist>

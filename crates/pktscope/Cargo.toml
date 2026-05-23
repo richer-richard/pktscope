@@ -14,6 +14,7 @@ categories = ["command-line-utilities", "network-programming"]
 pktscope-core = { path = "../pktscope-core" }
 anyhow.workspace = true
 clap.workspace = true
+serde_json.workspace = true
 crossbeam-channel.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true

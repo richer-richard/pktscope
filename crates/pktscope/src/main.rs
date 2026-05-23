@@ -11,7 +11,7 @@ use anyhow::Result;
 use clap::Parser;
 use crossbeam_channel::bounded;
 
-use cli::{Cli, Command};
+use cli::{Cli, Command, MonitorAction};
 
 const CHANNEL_CAPACITY: usize = 10_000;
 
@@ -89,7 +89,113 @@ fn main() -> Result<()> {
             let _ = decode_handle.join();
             Ok(())
         }
+        Command::Monitor { action } => monitor_cmd(action),
     }
+}
+
+#[cfg(unix)]
+static SIGNAL_STOP: AtomicBool = AtomicBool::new(false);
+
+#[cfg(unix)]
+extern "C" fn handle_signal(_sig: libc::c_int) {
+    SIGNAL_STOP.store(true, Ordering::Relaxed);
+}
+
+#[cfg(unix)]
+fn install_signal_handlers(stop: Arc<AtomicBool>) {
+    // SAFETY: handler only performs an atomic store, which is async-signal-safe.
+    let handler = handle_signal as extern "C" fn(libc::c_int) as libc::sighandler_t;
+    unsafe {
+        libc::signal(libc::SIGINT, handler);
+        libc::signal(libc::SIGTERM, handler);
+    }
+    std::thread::spawn(move || {
+        while !SIGNAL_STOP.load(Ordering::Relaxed) {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        stop.store(true, Ordering::Relaxed);
+    });
+}
+
+#[cfg(unix)]
+fn monitor_cmd(action: MonitorAction) -> Result<()> {
+    use pktscope_core::alert::AlertConfig;
+    use pktscope_core::monitor::{self, MonitorConfig};
+
+    match action {
+        MonitorAction::Run {
+            interface,
+            filter,
+            snaplen,
+            state_dir,
+            geoip_country_db,
+            geoip_asn_db,
+            demo,
+            daemonize,
+            no_notify,
+        } => {
+            permissions::check_capture_permissions()?;
+            let paths = monitor::paths::resolve(state_dir);
+            std::fs::create_dir_all(&paths.state_dir).ok();
+            if daemonize {
+                monitor::daemonize::daemonize(&paths.log)?;
+            }
+            let stop = Arc::new(AtomicBool::new(false));
+            install_signal_handlers(stop.clone());
+            let alert = if demo {
+                AlertConfig::demo()
+            } else {
+                AlertConfig::default()
+            };
+            eprintln!(
+                "pktscope monitor: interface={interface} db={} socket={}",
+                paths.db.display(),
+                paths.socket.display()
+            );
+            let cfg = MonitorConfig {
+                interface,
+                bpf: filter,
+                snaplen,
+                db_path: paths.db,
+                socket_path: paths.socket,
+                geoip_country: geoip_country_db,
+                geoip_asn: geoip_asn_db,
+                alert,
+                notify: !no_notify,
+            };
+            monitor::run_monitor(cfg, stop)
+        }
+        MonitorAction::Status { state_dir, json } => {
+            let paths = monitor::paths::resolve(state_dir);
+            let status = monitor::monitor_status(&paths.socket)?;
+            if json {
+                println!("{}", serde_json::to_string(&status)?);
+            } else {
+                println!(
+                    "pktscope monitor — {} (pid {})",
+                    status.baseline, status.pid
+                );
+                println!("  interface:    {}", status.interface);
+                println!("  uptime:       {}s", status.uptime_secs);
+                println!(
+                    "  processes:    {}\n  destinations: {}\n  alerts:       {}",
+                    status.processes, status.destinations, status.alerts
+                );
+            }
+            Ok(())
+        }
+        MonitorAction::Stop { state_dir } => {
+            let paths = monitor::paths::resolve(state_dir);
+            monitor::monitor_stop(&paths.socket)?;
+            println!("monitor stopping");
+            Ok(())
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn monitor_cmd(_action: MonitorAction) -> Result<()> {
+    anyhow::bail!("the egress monitor daemon is only supported on Unix")
 }
 
 fn list_interfaces() -> Result<()> {

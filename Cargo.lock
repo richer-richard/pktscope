@@ -883,6 +883,7 @@ dependencies = [
  "pcap",
  "pktscope-core",
  "ratatui",
+ "serde_json",
 ]
 
 [[package]]
