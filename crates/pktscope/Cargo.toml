@@ -1,0 +1,29 @@
+[package]
+name = "pktscope"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "A Wireshark-style terminal packet analyzer — lightweight, keyboard-driven, scriptable Wireshark alternative for the terminal"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords = ["packet-analyzer", "network", "tui", "pcap", "wireshark"]
+categories = ["command-line-utilities", "network-programming"]
+
+[dependencies]
+pktscope-core = { path = "../pktscope-core" }
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+crossbeam-channel.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+pcap.workspace = true
+chrono.workspace = true
+toml.workspace = true
+dirs.workspace = true
+regex.workspace = true
+serde.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true

@@ -1,1 +1,4 @@
 /target
+
+# Offline GeoIP/ASN databases fetched by scripts/fetch-geoip.sh (not committed)
+*.mmdb

@@ -1,0 +1,26 @@
+# pktscope egress monitor — systemd template unit (Linux).
+#
+# Install (templated on the interface, e.g. eth0):
+#   sudo cp dist/pktscope-monitor.service /etc/systemd/system/pktscope-monitor@.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now pktscope-monitor@eth0
+#
+# CAP_NET_RAW grants packet capture without full root; full socket→pid
+# attribution for all users still benefits from running as root.
+
+[Unit]
+Description=pktscope egress monitor (%I)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pktscope monitor run -i %I
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+Restart=on-failure
+RestartSec=5
+StateDirectory=pktscope
+
+[Install]
+WantedBy=multi-user.target
