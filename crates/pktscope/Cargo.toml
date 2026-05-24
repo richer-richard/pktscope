@@ -11,7 +11,7 @@ keywords = ["packet-analyzer", "network", "tui", "pcap", "wireshark"]
 categories = ["command-line-utilities", "network-programming"]
 
 [dependencies]
-pktscope-core = { path = "../pktscope-core" }
+pktscope-core = { path = "../pktscope-core", version = "0.2.0" }
 anyhow.workspace = true
 clap.workspace = true
 serde_json.workspace = true
